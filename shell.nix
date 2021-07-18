@@ -1,10 +1,8 @@
 { pkgs ? import <nixpkgs> {} }:
-
-pkgs.mkShell {
+with pkgs;
+mkShell {
+  name = "bsa";
   buildInputs = [
-    pkgs.hello
-
-    # keep this line if you use bash
-    pkgs.bashInteractive
+    rustup
   ];
 }
