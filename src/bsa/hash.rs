@@ -1,25 +1,34 @@
+use bytemuck::{Pod, Zeroable};
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
 pub struct Hash(u64);
 
+impl From<&str> for Hash {
+    #[doc = "Returns tes4's two hash values for filename."]
+    #[doc = "Based on TimeSlips code with cleanup and pythonization."]
+    fn from(file_name: &str) -> Self {
+        let (base0, ext) = hash_parts(file_name);
+        let base = base0.as_bytes();
 
-#[doc = "Returns tes4's two hash values for filename."]
-#[doc = "Based on TimeSlips code with cleanup and pythonization."]
-pub fn hash_file(file_name: String) -> Option<Hash> {
-    let name_sane = file_name.to_lowercase().replace('/', "\\");
-    let (base, ext) = name_sane.rsplit_once('.')?;
+        let hash1 = hash_part1(base)
+            | hash_ext(ext);
+        let hash2 = hash_part2(&base[1 .. base.len() - 2])
+            + hash_part2(ext.as_bytes());
 
-    let hash1 = hash_part1(base) | hash_ext(ext);
-    let hash2 = hash_part2(&base.as_bytes()[1 .. base.len() - 2]);
-    let hash3 = hash_part2(ext.as_bytes());
-
-    Some (Hash(hash1 + ((hash2 + hash3) << 32)))
+        Hash(hash1 + (hash2 << 32))
+    }
 }
 
-fn hash_part1(base: &str) -> u64 {
-    let chars = base.as_bytes();
-    let mut hash1: u64 = chars[chars.len() - 1] as u8 as u64;
+fn hash_parts(file_name: &str) -> (&str, &str) {
+    file_name.rsplit_once('.').unwrap_or((file_name, ""))
+}
+
+fn hash_part1(chars : &[u8]) -> u64 {
+    let mut hash1 = 0;
+    hash1 |= chars[chars.len() - 1] as u8 as u64;
     hash1 |= (chars[chars.len() - 2] as u64) << 8;
-    hash1 |= (base.len() as u8 as u64) << 16;
+    hash1 |= (chars.len() as u8 as u64) << 16;
     hash1 |= chars[0] as u64;
     hash1
 }
@@ -35,7 +44,7 @@ fn hash_ext(ext: &str) -> u64 {
 }
 
 fn hash_part2(chars: &[u8]) -> u64 {
-    let mut hash: u64 = 0;
+    let mut hash = 0;
     for c in chars {
         hash = (hash * 0x1003f) + (*c as u64);
     }

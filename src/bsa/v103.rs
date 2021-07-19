@@ -1,7 +1,8 @@
+use bytemuck::{Pod, Zeroable};
 use std::str;
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
-pub use super::{MagicNumber, Hash};
+pub use super::hash::Hash;
 
 
 #[bitflags]
@@ -29,6 +30,15 @@ pub enum ArchiveFlags {
     pub Ux400 = 0x400,
 }
 
+pub trait ToArchiveBitFlags: BitFlag {
+    fn to_archive_bit_flags(bits: u32) -> BitFlags<Self>;
+}
+impl ToArchiveBitFlags for ArchiveFlags {
+    fn to_archive_bit_flags(bits: u32) -> BitFlags<Self> {
+        BitFlags::from_bits_truncate(bits)
+    }
+}
+
 #[bitflags]
 #[repr(u16)]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -45,9 +55,22 @@ pub enum FileFlags {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+pub struct RawHeader {
+    pub _offset: u32,
+    pub archive_flags: u32,
+    pub folder_count: u32,
+    pub file_count: u32,
+    pub total_folder_name_length: u32,
+    pub total_file_name_length: u32,
+    pub file_flags: u16,
+    pub padding: u16,
+}
+
 #[derive(Debug)]
-pub struct V2Header<A: BitFlag> { 
-    pub archive_flags: BitFlags<A>,
+pub struct V10XHeader<AF: BitFlag> {
+    pub _offset: u32,
+    pub archive_flags: BitFlags<AF>,
     pub folder_count: u32,
     pub file_count: u32,
     pub total_folder_name_length: u32,
@@ -55,11 +78,40 @@ pub struct V2Header<A: BitFlag> {
     pub file_flags: BitFlags<FileFlags>,
     pub padding: u16,
 }
+impl<AF: ToArchiveBitFlags> From<RawHeader> for V10XHeader<AF> {
+    fn from(raw: RawHeader) -> V10XHeader<AF> {
+        let RawHeader {
+            _offset,
+            archive_flags,
+            folder_count,
+            file_count,
+            total_folder_name_length,
+            total_file_name_length,
+            file_flags,
+            padding,
+        } = raw;
+        Self {
+            _offset,
+            archive_flags: ToArchiveBitFlags::to_archive_bit_flags(archive_flags),
+            folder_count,
+            file_count,
+            total_folder_name_length,
+            total_file_name_length,
+            file_flags: BitFlags::from_bits_truncate(file_flags),
+            padding,
+        }   
+    }
+}
+impl<AF: BitFlag> V10XHeader<AF> {
+    pub fn has_archive_flag(self, f: AF) -> bool {
+        self.archive_flags.contains(f)
+    }
+}
 
-pub type Header = V2Header<ArchiveFlags>;
+pub type Header = V10XHeader<ArchiveFlags>;
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
 pub struct FolderRecord {
     pub name_hash: Hash,
     pub file_count: u32,

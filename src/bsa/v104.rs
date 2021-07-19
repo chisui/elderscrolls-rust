@@ -1,9 +1,9 @@
 use std::str;
-use enumflags2::bitflags;
+use enumflags2::{bitflags, BitFlags};
 
-use super::v103::V2Header;
-pub use super::{MagicNumber, Hash};
-pub use super::v103::{FileFlags, FolderRecord};
+use super::v103::{V10XHeader, ToArchiveBitFlags};
+pub use super::hash::Hash;
+pub use super::v103::{FileFlags, FolderRecord, RawHeader};
 
 
 #[bitflags]
@@ -35,7 +35,14 @@ pub enum ArchiveFlags {
     pub XMemCodec = 0x200,
 }
 
-pub type Header = V2Header<ArchiveFlags>;
+
+impl ToArchiveBitFlags for ArchiveFlags {
+    fn to_archive_bit_flags(bits: u32) -> BitFlags<Self> {
+        BitFlags::from_bits_truncate(bits)
+    }
+}
+
+pub type Header = V10XHeader<ArchiveFlags>;
 
 #[repr(C)]
 #[derive(Debug)]
