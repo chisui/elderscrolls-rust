@@ -1,9 +1,10 @@
-use std::str;
+use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags};
+use std::str;
 
 use super::v103::{V10XHeader, ToArchiveBitFlags};
 pub use super::hash::Hash;
-pub use super::v103::{FileFlags, FolderRecord, RawHeader};
+pub use super::v103::{FileFlags, FolderRecord, RawHeader, BZString};
 
 
 #[bitflags]
@@ -45,13 +46,14 @@ impl ToArchiveBitFlags for ArchiveFlags {
 pub type Header = V10XHeader<ArchiveFlags>;
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
 pub struct FileRecord {
     pub name_hash: Hash,
     pub size: u32,
     pub offset: u32,
 }
 impl FileRecord {
+    #[allow(dead_code)]
     pub fn is_compressed(&self) -> bool {
         (self.size & 0x40000000) == 0x40000000
     }

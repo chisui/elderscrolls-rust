@@ -3,6 +3,7 @@ use std::str;
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
 pub use super::hash::Hash;
+pub use super::bzstring::BZString;
 
 
 #[bitflags]
@@ -103,11 +104,12 @@ impl<AF: ToArchiveBitFlags> From<RawHeader> for V10XHeader<AF> {
     }
 }
 impl<AF: BitFlag> V10XHeader<AF> {
-    pub fn has_archive_flag(self, f: AF) -> bool {
+    pub fn has_archive_flag(&self, f: AF) -> bool {
         self.archive_flags.contains(f)
     }
 }
 
+#[allow(dead_code)]
 pub type Header = V10XHeader<ArchiveFlags>;
 
 #[repr(C)]
