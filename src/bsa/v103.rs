@@ -115,13 +115,12 @@ impl<AF: ToArchiveBitFlags> V10XHeader<AF> {
 }
 impl<AF: ToArchiveBitFlags> bin::Readable for V10XHeader<AF> {
     type ReadableArgs = ();
-    fn read<R: Read>(mut reader: R, _: &()) -> Result<V10XHeader<AF>> {
+    fn read<R: Read>(mut reader: R, _: ()) -> Result<V10XHeader<AF>> {
         let raw: RawHeader = bin::read_struct(&mut reader)?;
         Ok(V10XHeader::<AF>::from(raw))
     }
 }
 
-#[allow(dead_code)]
 pub type Header = V10XHeader<ArchiveFlags>;
 
 #[repr(C)]

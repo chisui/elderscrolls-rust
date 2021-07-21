@@ -19,7 +19,7 @@ pub struct FolderRecord {
 }
 impl Readable for FolderRecord {
     type ReadableArgs = ();
-    fn read<R: Read>(reader: R, _: &()) -> Result<Self> {
+    fn read<R: Read>(reader: R, _: ()) -> Result<Self> {
         read_struct(reader)
     }
 }
@@ -31,15 +31,15 @@ pub struct FolderContentRecord {
 }
 impl Readable for FolderContentRecord {
     type ReadableArgs = (bool, u32);
-    fn read<R: Read>(mut reader: R, (has_name, file_count): &(bool, u32)) -> Result<FolderContentRecord> {
-        let name = if *has_name {
-            let n = BZString::read(&mut reader, &())?;
+    fn read<R: Read>(mut reader: R, (has_name, file_count): (bool, u32)) -> Result<FolderContentRecord> {
+        let name = if has_name {
+            let n = BZString::read(&mut reader, ())?;
             Some(n)
         } else {
             None
         };
-        let mut file_records = Vec::with_capacity(*file_count as usize);
-        for _ in 0..*file_count {
+        let mut file_records = Vec::with_capacity(file_count as usize);
+        for _ in 0..file_count {
             let file = read_struct(&mut reader)?;
             file_records.push(file);
         }
@@ -59,10 +59,10 @@ impl FileNames {
 }
 impl Readable for FileNames {
     type ReadableArgs = u32;
-    fn read<R: Read>(mut reader: R, file_count: &u32) -> Result<FileNames> {
-        let mut file_names: HashMap<Hash, BZString> = HashMap::with_capacity(*file_count as usize);
-        for _ in 0..*file_count {
-            let name_nt = NullTerminated::read(&mut reader, &())?;
+    fn read<R: Read>(mut reader: R, file_count: u32) -> Result<FileNames> {
+        let mut file_names: HashMap<Hash, BZString> = HashMap::with_capacity(file_count as usize);
+        for _ in 0..file_count {
+            let name_nt = NullTerminated::read(&mut reader, ())?;
             let name = BZString::from(name_nt);
             file_names.insert(Hash::from(&name), name);
         }

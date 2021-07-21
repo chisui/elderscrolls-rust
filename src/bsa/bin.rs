@@ -9,12 +9,12 @@ pub fn read_struct<S: Pod, R: Read>(mut reader: R) -> Result<S> {
     Ok(val)
 }
 
-pub trait Readable
-where Self: Sized {
+pub trait Readable: Sized
+where <Self as Readable>::ReadableArgs: Copy {
     type ReadableArgs;
-    fn read<R: Read>(reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self>;
+    fn read<R: Read>(reader: R, args: <Self as Readable>::ReadableArgs) -> Result<Self>;
 
-    fn read_many<R: Read>(mut reader: R, num: usize, args: &<Self as Readable>::ReadableArgs) -> Result<Vec<Self>> {
+    fn read_many<R: Read>(mut reader: R, num: usize, args: <Self as Readable>::ReadableArgs) -> Result<Vec<Self>> {
         let mut vals = Vec::new();
         for _ in 0..num {
             let val = Self::read(&mut reader, args)?;

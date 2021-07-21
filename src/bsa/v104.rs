@@ -55,14 +55,13 @@ pub struct FileRecord {
     pub offset: u32,
 }
 impl FileRecord {
-    #[allow(dead_code)]
     pub fn is_compressed(&self) -> bool {
         (self.size & 0x40000000) == 0x40000000
     }
 }
 impl bin::Readable for FileRecord {
     type ReadableArgs = ();
-    fn read<R: Read>(mut reader: R, _: &()) -> Result<FileRecord> {
+    fn read<R: Read>(mut reader: R, _: ()) -> Result<FileRecord> {
         bin::read_struct(&mut reader)
     }
 }

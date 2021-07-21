@@ -11,7 +11,6 @@ pub enum Version {
     V103, // TES4
     V104, // F3, FNV, TES5
     V105, // TES5se
-    #[allow(dead_code)]
     V2, // F4 F76
 }
 impl fmt::Display for Version {
@@ -27,7 +26,7 @@ impl fmt::Display for Version {
 }
 impl bin::Readable for Version {
     type ReadableArgs = ();
-    fn read<R: Read>(mut buffer: R, _: &()) -> Result<Self> {
+    fn read<R: Read>(mut buffer: R, _: ()) -> Result<Self> {
         let mut magic_number = [0; 4];
         buffer.read(&mut magic_number[..])?;
         if magic_number == [0,0,1,0] {
