@@ -1,7 +1,7 @@
 use std::str;
 use std::convert::TryFrom;
 use std::fmt;
-use std::io::{Read, Result, Error, ErrorKind};
+use std::io::{Read, Seek, Result, Error, ErrorKind};
 
 use super::bin::{read_struct, Readable};
 
@@ -32,7 +32,7 @@ impl TryFrom<Vec<u8>> for BZString {
 }
 impl Readable for BZString {
     type ReadableArgs = ();
-    fn read<R: Read>(mut reader: R, _: ()) -> Result<BZString> {
+    fn read<R: Read + Seek>(mut reader: R, _: ()) -> Result<BZString> {
         let length: u8 = read_struct(&mut reader)?;
         let mut chars: Vec<u8> = vec![0u8; length as usize];
         reader.read_exact(&mut chars)?;
@@ -48,7 +48,7 @@ impl From<NullTerminated> for BZString {
 }
 impl Readable for NullTerminated {
     type ReadableArgs = ();
-    fn read<R: Read>(mut reader: R, _: ()) -> Result<Self> {
+    fn read<R: Read + Seek>(mut reader: R, _: ()) -> Result<Self> {
         let mut chars: Vec<u8> = Vec::with_capacity(32);
         loop {
             let c: u8 = read_struct(&mut reader)?;

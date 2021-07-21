@@ -1,4 +1,4 @@
-use std::io::{Read, Result};
+use std::io::{Read, Seek, Result};
 use std::str;
 use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags};
@@ -12,7 +12,7 @@ pub use super::v103::{FileFlag, FolderRecord, RawHeader, BZString};
 #[bitflags]
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum ArchiveFlags {
+pub enum ArchiveFlag {
     #[doc = "The game may not load a BSA without this bit set."]
     pub IncludeDirectoryNames = 0x1,
     #[doc = "The game may not load a BSA without this bit set."]
@@ -39,13 +39,13 @@ pub enum ArchiveFlags {
 }
 
 
-impl ToArchiveBitFlags for ArchiveFlags {
+impl ToArchiveBitFlags for ArchiveFlag {
     fn to_archive_bit_flags(bits: u32) -> BitFlags<Self> {
         BitFlags::from_bits_truncate(bits)
     }
 }
 
-pub type Header = V10XHeader<ArchiveFlags>;
+pub type Header = V10XHeader<ArchiveFlag>;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -61,7 +61,7 @@ impl FileRecord {
 }
 impl bin::Readable for FileRecord {
     type ReadableArgs = ();
-    fn read<R: Read>(mut reader: R, _: ()) -> Result<FileRecord> {
+    fn read<R: Read + Seek>(mut reader: R, _: ()) -> Result<FileRecord> {
         bin::read_struct(&mut reader)
     }
 }

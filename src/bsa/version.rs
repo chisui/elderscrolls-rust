@@ -1,5 +1,6 @@
-use std::io::{Read, Result, Error, ErrorKind};
+use std::io::{Read, Seek, SeekFrom, Result, Error, ErrorKind};
 use std::fmt;
+use bytemuck::{Zeroable, Pod};
 
 use super::bin;
 
@@ -24,16 +25,19 @@ impl fmt::Display for Version {
         })
     }
 }
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+pub struct MagicNumber([u8; 4]);
+
 impl bin::Readable for Version {
     type ReadableArgs = ();
-    fn read<R: Read>(mut buffer: R, _: ()) -> Result<Self> {
-        let mut magic_number = [0; 4];
-        buffer.read(&mut magic_number[..])?;
-        if magic_number == [0,0,1,0] {
+    fn read<R: Read + Seek>(mut buffer: R, _: ()) -> Result<Self> {
+        buffer.seek(SeekFrom::Start(0))?;
+        let magic_number: MagicNumber = bin::read_struct(&mut buffer)?;
+        if magic_number.0 == [0,0,1,0] {
             Ok(Version::V1)
         } else { // just treat everything else as V10X Since Version field should match
-            let mut version = [0; 4];
-            buffer.read(&mut version[..])?;
+            let version: [u8; 4] = bin::read_struct(&mut buffer)?;
             match version[0] {
                 103 => Ok(Version::V103),
                 104 => Ok(Version::V104),

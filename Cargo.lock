@@ -34,6 +34,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "enumflags2",
+ "lazy_static",
  "lz4",
  "structopt",
 ]
