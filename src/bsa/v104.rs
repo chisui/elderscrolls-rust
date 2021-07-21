@@ -1,10 +1,12 @@
+use std::io::{Read, Result};
+use std::str;
 use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags};
-use std::str;
 
 use super::v103::{V10XHeader, ToArchiveBitFlags};
+use super::bin;
 pub use super::hash::Hash;
-pub use super::v103::{FileFlags, FolderRecord, RawHeader, BZString};
+pub use super::v103::{FileFlag, FolderRecord, RawHeader, BZString};
 
 
 #[bitflags]
@@ -56,5 +58,11 @@ impl FileRecord {
     #[allow(dead_code)]
     pub fn is_compressed(&self) -> bool {
         (self.size & 0x40000000) == 0x40000000
+    }
+}
+impl bin::Readable for FileRecord {
+    type ReadableArgs = ();
+    fn read<R: Read>(mut reader: R, _: &()) -> Result<FileRecord> {
+        bin::read_struct(&mut reader)
     }
 }

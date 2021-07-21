@@ -1,47 +1,57 @@
 use std::io::{BufReader, Result};
 use std::fs::File;
-use std::collections::HashMap;
+use std::path::PathBuf;
+use structopt::StructOpt;
 
 mod bsa;
-use bsa::bin::read_struct;
+use bsa::bin::Readable;
 use bsa::version::Version;
 use bsa::v105;
 use bsa::v105::ArchiveFlags::{IncludeDirectoryNames, IncludeFileNames};
 
 
+
+#[derive(Debug, StructOpt)]
+#[structopt(about = "Bethesda Softworks Archive tool")]
+enum Args {
+    List {        
+        #[structopt(parse(from_os_str))]
+        file: PathBuf,
+    },
+}
+
 fn main() -> Result<()> {
-    let file = File::open("./test.bsa").expect("file not found!");
+    let args = Args::from_args();
+    match args {
+        Args::List{ file } => list(&file),
+    }
+}
+
+fn list(file: &PathBuf) -> Result<()> {
+    let file = File::open(file).expect("file not found!");
     let mut buffer = BufReader::new(file);
 
-    let version: Version = Version::read(&mut buffer)?;
+    let version: Version = Version::read(&mut buffer, &())?;
 
     println!("Version: {}", version);
     if version == Version::V105 {
         
-        let header: v105::Header = read_struct::<v105::RawHeader, _>(&mut buffer)
-            .map(v105::Header::from)?;
+        let header = v105::Header::read(&mut buffer, &())?;
         println!("Header: {:#?}", header);
 
-        // folder records
-        let mut dirs: Vec<v105::FolderRecord> = Vec::new();
-        for _ in 0..header.folder_count {
-            let dir: v105::FolderRecord = read_struct(&mut buffer)?;
-            dirs.push(dir);
-        }
+        let dirs: Vec<v105::FolderRecord> = v105::FolderRecord::read_many(&mut buffer, header.folder_count as usize, &())?;
 
         let has_dir_name = header.has_archive_flag(IncludeDirectoryNames);
         let mut dir_contents = Vec::new();
         for dir in dirs {
-            let dir_content = v105::FolderContentRecord::read(has_dir_name, dir.file_count, &mut buffer)?;
+            let dir_content = v105::FolderContentRecord::read(&mut buffer, &(has_dir_name, dir.file_count))?;
             dir_contents.push(dir_content);
         }
-        let mut file_names: HashMap<v105::Hash, v105::BZString> = HashMap::with_capacity(header.file_count as usize);
-        if header.has_archive_flag(IncludeFileNames) {
-            for _ in 0..header.file_count {
-                let name = v105::BZString::read_null_terminated(&mut buffer)?;
-                file_names.insert(v105::Hash::from(&name), name);
-            }
-        }
+        let file_names = if header.has_archive_flag(IncludeFileNames) {
+            v105::FileNames::read(&mut buffer, &header.file_count)?
+        } else {
+            v105::FileNames::empty()
+        };
 
         println!("names: {:#?}", file_names);
 

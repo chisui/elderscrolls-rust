@@ -2,7 +2,9 @@ use std::str;
 use std::convert::TryFrom;
 use std::fmt;
 use std::io::{Read, Result, Error, ErrorKind};
-use super::bin::read_struct;
+
+use super::bin::{read_struct, Readable};
+
 
 pub struct BZString {
     pub value: String
@@ -28,15 +30,25 @@ impl TryFrom<Vec<u8>> for BZString {
         }
     }
 }
-impl BZString {
-    pub fn read<R: Read>(mut reader: R) -> Result<BZString> {
+impl Readable for BZString {
+    type ReadableArgs = ();
+    fn read<R: Read>(mut reader: R, _: &()) -> Result<BZString> {
         let length: u8 = read_struct(&mut reader)?;
         let mut chars: Vec<u8> = vec![0u8; length as usize];
         reader.read_exact(&mut chars)?;
         BZString::try_from(chars)
     }
+}
 
-    pub fn read_null_terminated<R: Read>(mut reader: R) -> Result<BZString> {
+pub struct NullTerminated(BZString);
+impl From<NullTerminated> for BZString {
+    fn from(s: NullTerminated) -> BZString {
+        s.0
+    }
+}
+impl Readable for NullTerminated {
+    type ReadableArgs = ();
+    fn read<R: Read>(mut reader: R, _: &()) -> Result<Self> {
         let mut chars: Vec<u8> = Vec::with_capacity(32);
         loop {
             let c: u8 = read_struct(&mut reader)?;
@@ -45,6 +57,7 @@ impl BZString {
             }
             chars.push(c);
         }
-        BZString::try_from(chars)
+        let s = BZString::try_from(chars)?;
+        Ok(NullTerminated(s))
     }
 }

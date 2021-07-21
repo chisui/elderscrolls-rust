@@ -1,7 +1,9 @@
-use bytemuck::{Pod, Zeroable};
+use std::io::{Read, Result};
 use std::str;
+use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
+use super::bin;
 pub use super::hash::Hash;
 pub use super::bzstring::BZString;
 
@@ -43,7 +45,7 @@ impl ToArchiveBitFlags for ArchiveFlags {
 #[bitflags]
 #[repr(u16)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum FileFlags {
+pub enum FileFlag {
     pub Meshes = 0x1,
     pub Textures = 0x2,
     pub Menus = 0x4,
@@ -76,7 +78,7 @@ pub struct V10XHeader<AF: BitFlag> {
     pub file_count: u32,
     pub total_folder_name_length: u32,
     pub total_file_name_length: u32,
-    pub file_flags: BitFlags<FileFlags>,
+    pub file_flags: BitFlags<FileFlag>,
     pub padding: u16,
 }
 impl<AF: ToArchiveBitFlags> From<RawHeader> for V10XHeader<AF> {
@@ -103,9 +105,19 @@ impl<AF: ToArchiveBitFlags> From<RawHeader> for V10XHeader<AF> {
         }   
     }
 }
-impl<AF: BitFlag> V10XHeader<AF> {
+impl<AF: ToArchiveBitFlags> V10XHeader<AF> {
     pub fn has_archive_flag(&self, f: AF) -> bool {
         self.archive_flags.contains(f)
+    }
+    pub fn has_file_flag(&self, f: FileFlag) -> bool {
+        self.file_flags.contains(f)
+    }
+}
+impl<AF: ToArchiveBitFlags> bin::Readable for V10XHeader<AF> {
+    type ReadableArgs = ();
+    fn read<R: Read>(mut reader: R, _: &()) -> Result<V10XHeader<AF>> {
+        let raw: RawHeader = bin::read_struct(&mut reader)?;
+        Ok(V10XHeader::<AF>::from(raw))
     }
 }
 

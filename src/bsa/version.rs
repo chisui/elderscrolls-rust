@@ -1,6 +1,8 @@
 use std::io::{Read, Result, Error, ErrorKind};
 use std::fmt;
 
+use super::bin;
+
 
 #[repr(u32)]
 #[derive(Debug, PartialEq, Eq)]
@@ -12,9 +14,20 @@ pub enum Version {
     #[allow(dead_code)]
     V2, // F4 F76
 }
-impl Version {
-    pub fn read<R>(mut buffer: R) -> Result<Version>
-    where R: Read {
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+            Version::V1   => "v001",
+            Version::V103 => "v103",
+            Version::V104 => "v104",
+            Version::V105 => "v105",
+            Version::V2   => "v2",
+        })
+    }
+}
+impl bin::Readable for Version {
+    type ReadableArgs = ();
+    fn read<R: Read>(mut buffer: R, _: &()) -> Result<Self> {
         let mut magic_number = [0; 4];
         buffer.read(&mut magic_number[..])?;
         if magic_number == [0,0,1,0] {
@@ -29,16 +42,5 @@ impl Version {
                 _   => Err(Error::new(ErrorKind::InvalidData, format!("Unknown Version {}", version[0]))),
             }
         }
-    }
-}
-impl fmt::Display for Version {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            Version::V1   => "v001",
-            Version::V103 => "v103",
-            Version::V104 => "v104",
-            Version::V105 => "v105",
-            Version::V2   => "v2",
-        })
     }
 }
