@@ -1,4 +1,4 @@
-use std::io::{Read, Seek, SeekFrom, Result, Error, ErrorKind};
+use std::io::{Read, Seek, Result, Error, ErrorKind};
 use std::fmt;
 use bytemuck::{Zeroable, Pod};
 
@@ -30,9 +30,7 @@ impl fmt::Display for Version {
 pub struct MagicNumber([u8; 4]);
 
 impl bin::Readable for Version {
-    type ReadableArgs = ();
-    fn read<R: Read + Seek>(mut buffer: R, _: ()) -> Result<Self> {
-        buffer.seek(SeekFrom::Start(0))?;
+    fn read_here<R: Read + Seek>(mut buffer: R, _: ()) -> Result<Self> {
         let magic_number: MagicNumber = bin::read_struct(&mut buffer)?;
         if magic_number.0 == [0,0,1,0] {
             Ok(Version::V1)

@@ -3,8 +3,9 @@ use std::fs::File;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-use bsa::open::WrappedBsa;
-use bsa::open::WrappedBsa::V105;
+use bsa::bin::Readable;
+use bsa::version::Version;
+use bsa::v105;
 
 
 #[derive(Debug, StructOpt)]
@@ -27,14 +28,16 @@ fn list(file: &PathBuf) -> Result<()> {
     let file = File::open(file).expect("file not found!");
     let mut buffer = BufReader::new(file);
 
-    let some_bsa = WrappedBsa::open(&mut buffer)?;
-    match some_bsa {
-        V105(mut bsa) => {
-            println!("Header: {:#?}", bsa.header);
-            let file_names = bsa.file_names()?;
-
-            println!("names: {:#?}", file_names);
-        }
+    let version = Version::read(&mut buffer, ())?;
+    println!("Version {}", version);
+    match version {
+        Version::V105 => {
+            let header = v105::Header::read(&mut buffer, ())?;
+            println!("{:x?}", header);
+            let files = v105::file_tree(&mut buffer, header)?;
+            println!("{:?}", files);
+        },
+        v => println!("Unsupported Version: {}", v),
     }
     Ok(())
 }

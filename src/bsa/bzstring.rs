@@ -6,6 +6,7 @@ use std::io::{Read, Seek, Result, Error, ErrorKind};
 use super::bin::{read_struct, Readable};
 
 
+#[derive(Clone)]
 pub struct BZString {
     pub value: String
 }
@@ -26,29 +27,40 @@ impl TryFrom<Vec<u8>> for BZString {
             Ok(s) => Ok(BZString {
                 value: s.to_owned()
             }),
-            Err(e) => Err(Error::new(ErrorKind::InvalidData, format!("{}", e))),
+            Err(e) => Err(Error::new(ErrorKind::InvalidData, format!("{}, {:x?}", e, chars))),
         }
     }
 }
 impl Readable for BZString {
     type ReadableArgs = ();
-    fn read<R: Read + Seek>(mut reader: R, _: ()) -> Result<BZString> {
+    fn read_here<R: Read + Seek>(mut reader: R, _: ()) -> Result<BZString> {
         let length: u8 = read_struct(&mut reader)?;
         let mut chars: Vec<u8> = vec![0u8; length as usize];
         reader.read_exact(&mut chars)?;
-        BZString::try_from(chars)
+        match BZString::try_from(chars) {
+            Ok(s) => Ok(s),
+            Err(e) => {
+                let pos = reader.stream_position()?;
+                Err(Error::new(ErrorKind::InvalidData, format!("{} at: {:08}", e, pos)))
+            },
+        }
     }
 }
 
-pub struct NullTerminated(BZString);
+#[derive(Debug)]
+pub struct NullTerminated(pub BZString);
 impl From<NullTerminated> for BZString {
     fn from(s: NullTerminated) -> BZString {
         s.0
     }
 }
+impl From<&NullTerminated> for BZString {
+    fn from(s: &NullTerminated) -> BZString {
+        s.0.clone()
+    }
+}
 impl Readable for NullTerminated {
-    type ReadableArgs = ();
-    fn read<R: Read + Seek>(mut reader: R, _: ()) -> Result<Self> {
+    fn read_here<R: Read + Seek>(mut reader: R, _: ()) -> Result<Self> {
         let mut chars: Vec<u8> = Vec::with_capacity(32);
         loop {
             let c: u8 = read_struct(&mut reader)?;
@@ -57,7 +69,12 @@ impl Readable for NullTerminated {
             }
             chars.push(c);
         }
-        let s = BZString::try_from(chars)?;
-        Ok(NullTerminated(s))
+        match BZString::try_from(chars) {
+            Ok(s) => Ok(NullTerminated(s)),
+            Err(e) => {
+                let pos = reader.stream_position()?;
+                Err(Error::new(ErrorKind::InvalidData, format!("{} at: {:08x}", e, pos)))
+            },
+        }
     }
 }

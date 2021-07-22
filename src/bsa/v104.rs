@@ -6,7 +6,7 @@ use enumflags2::{bitflags, BitFlags};
 use super::v103::{V10XHeader, ToArchiveBitFlags};
 use super::bin;
 pub use super::hash::Hash;
-pub use super::v103::{FileFlag, FolderRecord, RawHeader, BZString};
+pub use super::v103::{FileFlag, FolderRecord, RawHeader, Has, BZString};
 
 
 #[bitflags]
@@ -55,13 +55,12 @@ pub struct FileRecord {
     pub offset: u32,
 }
 impl FileRecord {
-    pub fn is_compressed(&self) -> bool {
+    pub fn is_compression_bit_set(&self) -> bool {
         (self.size & 0x40000000) == 0x40000000
     }
 }
 impl bin::Readable for FileRecord {
-    type ReadableArgs = ();
-    fn read<R: Read + Seek>(mut reader: R, _: ()) -> Result<FileRecord> {
+    fn read_here<R: Read + Seek>(mut reader: R, _: ()) -> Result<FileRecord> {
         bin::read_struct(&mut reader)
     }
 }

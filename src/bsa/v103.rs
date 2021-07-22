@@ -1,9 +1,12 @@
 use std::io::{Read, Seek, Result};
+use std::mem::size_of;
 use std::str;
+use std::fmt::Debug;
 use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
 use super::bin;
+use super::version::{Version, MagicNumber};
 pub use super::hash::Hash;
 pub use super::bzstring::BZString;
 
@@ -70,7 +73,7 @@ pub struct RawHeader {
     pub padding: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct V10XHeader<AF: BitFlag> {
     pub offset: u32,
     pub archive_flags: BitFlags<AF>,
@@ -105,17 +108,24 @@ impl<AF: ToArchiveBitFlags> From<RawHeader> for V10XHeader<AF> {
         }   
     }
 }
-impl<AF: ToArchiveBitFlags> V10XHeader<AF> {
-    pub fn has_archive_flag(&self, f: AF) -> bool {
+pub trait Has<T> {
+    fn has(&self, t: T) -> bool;
+}
+impl<AF: ToArchiveBitFlags> Has<AF> for V10XHeader<AF> {
+    fn has(&self, f: AF) -> bool {
         self.archive_flags.contains(f)
     }
-    pub fn has_file_flag(&self, f: FileFlag) -> bool {
+}
+impl<AF: ToArchiveBitFlags> Has<FileFlag> for V10XHeader<AF> {
+    fn has(&self, f: FileFlag) -> bool {
         self.file_flags.contains(f)
     }
 }
-impl<AF: ToArchiveBitFlags> bin::Readable for V10XHeader<AF> {
-    type ReadableArgs = ();
-    fn read<R: Read + Seek>(mut reader: R, _: ()) -> Result<V10XHeader<AF>> {
+impl<AF: ToArchiveBitFlags + Debug> bin::Readable for V10XHeader<AF> {
+    fn offset(_: ()) -> Option<u64> {
+        Some(size_of::<MagicNumber>() as u64 + size_of::<Version>() as u64)
+    }
+    fn read_here<R: Read + Seek>(mut reader: R, _: ()) -> Result<V10XHeader<AF>> {
         let raw: RawHeader = bin::read_struct(&mut reader)?;
         Ok(V10XHeader::<AF>::from(raw))
     }
