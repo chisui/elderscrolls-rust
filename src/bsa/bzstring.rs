@@ -1,7 +1,7 @@
+use std::io::{Read, Seek, SeekFrom, Result, Error, ErrorKind};
 use std::str;
 use std::convert::TryFrom;
 use std::fmt;
-use std::io::{Read, Seek, Result, Error, ErrorKind};
 
 use super::bin::{read_struct, Readable};
 
@@ -35,15 +35,10 @@ impl Readable for BZString {
     type ReadableArgs = ();
     fn read_here<R: Read + Seek>(mut reader: R, _: ()) -> Result<BZString> {
         let length: u8 = read_struct(&mut reader)?;
-        let mut chars: Vec<u8> = vec![0u8; length as usize];
+        let mut chars: Vec<u8> = vec![0u8; (length - 1) as usize]; // length field includes null.
         reader.read_exact(&mut chars)?;
-        match BZString::try_from(chars) {
-            Ok(s) => Ok(s),
-            Err(e) => {
-                let pos = reader.stream_position()?;
-                Err(Error::new(ErrorKind::InvalidData, format!("{} at: {:08}", e, pos)))
-            },
-        }
+        reader.seek(SeekFrom::Current(1))?; // skip null byte.
+        BZString::try_from(chars)
     }
 }
 

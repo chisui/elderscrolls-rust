@@ -3,11 +3,11 @@ use std::mem::size_of;
 use std::option::Option;
 use std::collections::HashMap;
 use bytemuck::{Zeroable, Pod};
-use either::Either;
 
 use super::bzstring::NullTerminated;
-use super::archive::BsaFile;
+use super::archive::{BsaDir, BsaFile, FileId};
 pub use super::bin::{read_struct, Readable};
+pub use super::hash;
 pub use super::hash::Hash;
 pub use super::v104::{ArchiveFlag, ArchiveFlag::CompressedArchive, FileFlag, Header, Has, RawHeader, FileRecord, BZString};
 
@@ -118,17 +118,17 @@ impl Readable for FolderRecords {
     }
 }
 
-pub fn file_tree<R: Read + Seek>(mut reader: R, header: Header) -> Result<Vec<BsaFile>> {
+pub fn file_tree<R: Read + Seek>(mut reader: R, header: Header) -> Result<Vec<BsaDir>> {
     let FolderRecords(dirs) = FolderRecords::read(&mut reader, header)?;
     let FileNames(file_names) = FileNames::read(&mut reader, header)?;
     
     let files = dirs.iter().map(|dir| {
-        BsaFile::Dir{
+        BsaDir {
 
             name: dir.name
                 .clone()
-                .map(Either::Right)
-                .unwrap_or(Either::Left(dir.name_hash)),
+                .map(FileId::StringId)
+                .unwrap_or(FileId::HashId(dir.name_hash)),
             
             files: dir.files.iter().map(|file| {
                 
@@ -138,11 +138,11 @@ pub fn file_tree<R: Read + Seek>(mut reader: R, header: Header) -> Result<Vec<Bs
                     file.is_compression_bit_set()
                 };
 
-                BsaFile::File {
+                BsaFile {
                     name: file_names.get(&file.name_hash)
                         .map(|n| n.clone())
-                        .map(Either::Right)
-                        .unwrap_or(Either::Left(file.name_hash)),
+                        .map(FileId::StringId)
+                        .unwrap_or(FileId::HashId(file.name_hash)),
                     compressed,
                     offset: file.offset as u64,
                 }

@@ -29,13 +29,19 @@ fn list(file: &PathBuf) -> Result<()> {
     let mut buffer = BufReader::new(file);
 
     let version = Version::read(&mut buffer, ())?;
-    println!("Version {}", version);
     match version {
         Version::V105 => {
             let header = v105::Header::read(&mut buffer, ())?;
-            println!("{:x?}", header);
-            let files = v105::file_tree(&mut buffer, header)?;
-            println!("{:?}", files);
+            let dirs = v105::file_tree(&mut buffer, header)?;
+            for dir in dirs {
+                for file in dir.files {
+                    println!("{}/{} {}", dir.name, file.name, if file.compressed {
+                        "compressed"
+                    } else {
+                        "uncompressed"
+                    });
+                }
+            }
         },
         v => println!("Unsupported Version: {}", v),
     }

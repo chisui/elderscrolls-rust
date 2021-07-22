@@ -1,4 +1,4 @@
-#![feature(once_cell, associated_type_defaults)]
+#![feature(once_cell, associated_type_defaults, wrapping_int_impl)]
 pub mod hash;
 pub mod archive;
 pub mod open;

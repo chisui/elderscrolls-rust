@@ -1,4 +1,4 @@
-use std::io::{Read, Seek, SeekFrom, Result};
+use std::io::{Read, Seek, SeekFrom, Result, Error, ErrorKind};
 use std::fmt::Debug;
 use bytemuck::Pod;
 
@@ -23,7 +23,13 @@ where <Self as Readable>::ReadableArgs: Copy {
             Some(i) => reader.seek(SeekFrom::Start(i))?,
             _ => 0,
         };
-        Self::read_here(reader, args)
+        match Self::read_here(&mut reader, args) {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                let pos = reader.stream_position()?;
+                Err(Error::new(ErrorKind::InvalidData, format!("{} at: {:08}", e, pos)))
+            },
+        }        
     }
 
     fn read_here<R: Read + Seek>(reader: R, args: <Self as Readable>::ReadableArgs) -> Result<Self>;
