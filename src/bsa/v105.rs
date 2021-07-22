@@ -79,7 +79,7 @@ impl Readable for FileNames {
 
     fn read_here<R: Read + Seek>(mut reader: R, header: Header) -> Result<FileNames> {
         Ok(FileNames(if header.has(ArchiveFlag::IncludeFileNames) {
-            let names = NullTerminated::read_many(&mut reader, header.file_count as usize - 1, ())?;
+            let names = NullTerminated::read_many(&mut reader, header.file_count as usize, ())?;
             names.iter()
                 .map(BZString::from)
                 .map(|name| (Hash::from(&name), name.clone()))
