@@ -1,7 +1,7 @@
 use std::io::{Read, Seek, Result};
 use std::mem::size_of;
 use std::str;
-use std::fmt::Debug;
+use std::fmt;
 use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
@@ -121,13 +121,28 @@ impl<AF: ToArchiveBitFlags> Has<FileFlag> for V10XHeader<AF> {
         self.file_flags.contains(f)
     }
 }
-impl<AF: ToArchiveBitFlags + Debug> bin::Readable for V10XHeader<AF> {
+impl<AF: ToArchiveBitFlags + fmt::Debug> bin::Readable for V10XHeader<AF> {
     fn offset(_: ()) -> Option<u64> {
         Some(size_of::<MagicNumber>() as u64 + size_of::<Version>() as u64)
     }
     fn read_here<R: Read + Seek>(mut reader: R, _: ()) -> Result<V10XHeader<AF>> {
         let raw: RawHeader = bin::read_struct(&mut reader)?;
         Ok(V10XHeader::<AF>::from(raw))
+    }
+}
+impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for V10XHeader<AF> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Folders: {}", self.folder_count)?;
+        writeln!(f, "Files:   {}", self.file_count)?;
+        writeln!(f, "Archive flags:")?;
+        for flag in self.archive_flags.iter() {
+            writeln!(f, "    {:?}", flag)?;
+        }
+        writeln!(f, "File flags:")?;
+        for flag in self.file_flags.iter() {
+            writeln!(f, "    {:?}", flag)?;
+        }
+        Ok(())
     }
 }
 
