@@ -64,12 +64,7 @@ impl Readable for NullTerminated {
             }
             chars.push(c);
         }
-        match BZString::try_from(chars) {
-            Ok(s) => Ok(NullTerminated(s)),
-            Err(e) => {
-                let pos = reader.stream_position()?;
-                Err(Error::new(ErrorKind::InvalidData, format!("{} at: {:08x}", e, pos)))
-            },
-        }
+        let s = BZString::try_from(chars)?;
+        Ok(NullTerminated(s))
     }
 }

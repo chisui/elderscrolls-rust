@@ -12,6 +12,9 @@ use bsa::v105;
 #[structopt(about = "Bethesda Softworks Archive tool")]
 enum Args {
     List {        
+        #[structopt(short, long)]
+        attributes: bool,
+
         #[structopt(parse(from_os_str))]
         file: PathBuf,
     },
@@ -20,11 +23,11 @@ enum Args {
 fn main() -> Result<()> {
     let args = Args::from_args();
     match args {
-        Args::List{ file } => list(&file),
+        Args::List{ file, attributes } => list(&file, attributes),
     }
 }
 
-fn list(file: &PathBuf) -> Result<()> {
+fn list(file: &PathBuf, attributes: bool) -> Result<()> {
     let file = File::open(file).expect("file not found!");
     let mut buffer = BufReader::new(file);
 
@@ -35,11 +38,12 @@ fn list(file: &PathBuf) -> Result<()> {
             let dirs = v105::file_tree(&mut buffer, header)?;
             for dir in dirs {
                 for file in dir.files {
-                    println!("{}/{} {}", dir.name, file.name, if file.compressed {
-                        "compressed"
+                    if attributes {
+                        let c = if file.compressed { "c" } else { " " };
+                        println!("{0} {1: >8} {2}/{3}", c, file.size / 1000, dir.name, file.name);
                     } else {
-                        "uncompressed"
-                    });
+                        println!("{0}/{1}", dir.name, file.name);
+                    }
                 }
             }
         },

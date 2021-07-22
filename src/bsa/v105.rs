@@ -82,7 +82,7 @@ impl Readable for FileNames {
             let names = NullTerminated::read_many(&mut reader, header.file_count as usize - 1, ())?;
             names.iter()
                 .map(BZString::from)
-                .map(|name| (Hash::from(&name), name))
+                .map(|name| (Hash::from(&name), name.clone()))
                 .collect()
         } else {
             HashMap::new()
@@ -145,6 +145,7 @@ pub fn file_tree<R: Read + Seek>(mut reader: R, header: Header) -> Result<Vec<Bs
                         .unwrap_or(FileId::HashId(file.name_hash)),
                     compressed,
                     offset: file.offset as u64,
+                    size: file.size,
                 }
 
             }).collect::<Vec<_>>(),

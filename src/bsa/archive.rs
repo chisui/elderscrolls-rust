@@ -19,8 +19,7 @@ impl fmt::Display for FileId {
         match self {
             FileId::HashId(Hash(h))             => write!(f, "#{:016x}", h),
             FileId::StringId(BZString{ value }) => {
-                let no_null: String = value.chars().take(value.len() - 2).collect();
-                write!(f, "{}", no_null.replace('\\', "/"))
+                write!(f, "{}", value.replace('\\', "/"))
             },
         }
     }
@@ -37,4 +36,5 @@ pub struct BsaFile {
     pub name: FileId,
     pub compressed: bool,
     pub offset: u64,
+    pub size: u32,
 }
