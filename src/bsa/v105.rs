@@ -165,7 +165,11 @@ pub fn extract<R: Read + Seek, W: Write>(includes_name: bool, file: BsaFile, mut
     }
 
     if file.compressed {
-        let mut decoder = lz4::Decoder::new(&mut reader)?;
+        // skip uncompressed size field
+        reader.seek(SeekFrom::Current(4))?;
+
+        let mut sub_reader = reader.take(file.size as u64);
+        let mut decoder = lz4::Decoder::new(&mut sub_reader)?;
         copy(&mut decoder, &mut writer)?;
     } else {
         let mut sub_reader = reader.take(file.size as u64);

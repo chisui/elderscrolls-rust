@@ -53,8 +53,9 @@ impl Bsa {
     pub fn extract<R: Read + Seek>(&self, file: BsaFile, out_path: &Path, reader: R) -> Result<()> {
         let out_file = File::create(out_path)?;
         match self {
+            Bsa::V103(header) => v103::extract(!header.has(v103::ArchiveFlag::IncludeFileNames), file, reader, out_file),
+            Bsa::V104(header) => v104::extract(!header.has(v104::ArchiveFlag::IncludeFileNames), file, reader, out_file),
             Bsa::V105(header) => v105::extract(!header.has(v105::ArchiveFlag::IncludeFileNames), file, reader, out_file),
-            _ => Err(Error::new(ErrorKind::InvalidData, "Unsupported version")),
         }
     }
 }

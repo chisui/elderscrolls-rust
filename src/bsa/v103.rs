@@ -1,4 +1,4 @@
-use std::io::{Read, Seek, Result};
+use std::io::{Read, Seek, SeekFrom, Result, Write, copy};
 use std::mem::size_of;
 use std::str;
 use std::fmt;
@@ -7,6 +7,7 @@ use enumflags2::{bitflags, BitFlags, BitFlag};
 
 use super::bin;
 use super::version::{Version, MagicNumber};
+use super::archive::{BsaFile};
 pub use super::hash::Hash;
 pub use super::bzstring::BZString;
 
@@ -155,3 +156,27 @@ pub struct FolderRecord {
     pub file_count: u32,
     pub offset: u32,
 }
+
+pub fn extract<R: Read + Seek, W: Write>(includes_name: bool, file: BsaFile, mut reader: R, mut writer: W) -> Result<()> {
+    reader.seek(SeekFrom::Start(file.offset))?;
+
+    // skip name field
+    if includes_name {
+        let name_len: u8 = bin::read_struct(&mut reader)?;
+        reader.seek(SeekFrom::Current(name_len as i64))?;
+    }
+    
+    if file.compressed {
+        // skip uncompressed size field
+        reader.seek(SeekFrom::Current(4))?;
+        
+        let mut sub_reader = reader.take(file.size as u64);
+        let mut decoder = libflate::zlib::Decoder::new(&mut sub_reader)?;
+        copy(&mut decoder, &mut writer)?;
+    } else {
+        let mut sub_reader = reader.take(file.size as u64);
+        copy(&mut sub_reader, &mut writer)?;
+    }
+    Ok(())
+}
+
