@@ -14,11 +14,11 @@ pub trait Readable: Sized + Debug
 where <Self as Readable>::ReadableArgs: Copy {
     type ReadableArgs = ();
 
-    fn offset(_: <Self as Readable>::ReadableArgs) -> Option<u64> {
+    fn offset(_: &<Self as Readable>::ReadableArgs) -> Option<u64> {
         None
     }
 
-    fn read<R: Read + Seek>(mut reader: R, args: <Self as Readable>::ReadableArgs) -> Result<Self> {
+    fn read<R: Read + Seek>(mut reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self> {
         match Self::offset(args) {
             Some(i) => reader.seek(SeekFrom::Start(i))?,
             _ => 0,
@@ -32,9 +32,9 @@ where <Self as Readable>::ReadableArgs: Copy {
         }        
     }
 
-    fn read_here<R: Read + Seek>(reader: R, args: <Self as Readable>::ReadableArgs) -> Result<Self>;
+    fn read_here<R: Read + Seek>(reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self>;
     
-    fn read_many<R: Read + Seek>(mut reader: R, num: usize, args: <Self as Readable>::ReadableArgs) -> Result<Vec<Self>> {
+    fn read_many<R: Read + Seek>(mut reader: R, num: usize, args: &<Self as Readable>::ReadableArgs) -> Result<Vec<Self>> {
         let mut vals = Vec::new();
         for _ in 0..num {
             let val = Self::read(&mut reader, args)?;

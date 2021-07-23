@@ -60,7 +60,7 @@ impl FileRecord {
     }
 }
 impl bin::Readable for FileRecord {
-    fn read_here<R: Read + Seek>(mut reader: R, _: ()) -> Result<FileRecord> {
+    fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> Result<FileRecord> {
         bin::read_struct(&mut reader)
     }
 }

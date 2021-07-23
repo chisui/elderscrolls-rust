@@ -33,7 +33,7 @@ impl TryFrom<Vec<u8>> for BZString {
 }
 impl Readable for BZString {
     type ReadableArgs = ();
-    fn read_here<R: Read + Seek>(mut reader: R, _: ()) -> Result<BZString> {
+    fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> Result<BZString> {
         let length: u8 = read_struct(&mut reader)?;
         let mut chars: Vec<u8> = vec![0u8; (length - 1) as usize]; // length field includes null.
         reader.read_exact(&mut chars)?;
@@ -55,7 +55,7 @@ impl From<&NullTerminated> for BZString {
     }
 }
 impl Readable for NullTerminated {
-    fn read_here<R: Read + Seek>(mut reader: R, _: ()) -> Result<Self> {
+    fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> Result<Self> {
         let mut chars: Vec<u8> = Vec::with_capacity(32);
         loop {
             let c: u8 = read_struct(&mut reader)?;

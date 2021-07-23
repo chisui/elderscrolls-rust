@@ -1,8 +1,9 @@
-use std::io::{Read, Seek, SeekFrom, Result};
+use std::io::{Read, Seek, SeekFrom, Result, Write, copy};
 use std::mem::size_of;
 use std::option::Option;
 use std::collections::HashMap;
 use bytemuck::{Zeroable, Pod};
+use lz4;
 
 use super::bzstring::NullTerminated;
 use super::archive::{BsaDir, BsaFile, FileId};
@@ -22,7 +23,7 @@ struct RawFolderRecord {
     pub _padding_post: u32,
 }
 impl Readable for RawFolderRecord {
-    fn read_here<R: Read + Seek>(reader: R, _: ()) -> Result<Self> {
+    fn read_here<R: Read + Seek>(reader: R, _: &()) -> Result<Self> {
         read_struct(reader)
     }
 }
@@ -41,15 +42,15 @@ pub struct FolderContentRecord {
 }
 impl Readable for FolderContentRecord {
     type ReadableArgs = (bool, u32);
-    fn read_here<R: Read + Seek>(mut reader: R, (has_name, file_count): (bool, u32)) -> Result<FolderContentRecord> {
-        let name = if has_name {
-            let n = BZString::read(&mut reader, ())?;
+    fn read_here<R: Read + Seek>(mut reader: R, (has_name, file_count): &(bool, u32)) -> Result<FolderContentRecord> {
+        let name = if *has_name {
+            let n = BZString::read(&mut reader, &())?;
             Some(n)
         } else {
             None
         };
-        let mut file_records = Vec::with_capacity(file_count as usize);
-        for _ in 0..file_count {
+        let mut file_records = Vec::with_capacity(*file_count as usize);
+        for _ in 0..*file_count {
             let file = read_struct(&mut reader)?;
             file_records.push(file);
         }
@@ -64,7 +65,7 @@ impl Readable for FolderContentRecord {
 pub struct FileNames(pub HashMap<Hash, BZString>);
 impl Readable for FileNames {
     type ReadableArgs = Header;
-    fn offset(header: Header) -> Option<u64> {
+    fn offset(header: &Header) -> Option<u64> {
         FolderRecords::offset(header).map(|after_header| { 
             let foler_records_size = size_of::<RawFolderRecord>() as u64 * header.folder_count as u64;
             let foler_names_size = if header.has(ArchiveFlag::IncludeDirectoryNames) {
@@ -77,9 +78,9 @@ impl Readable for FileNames {
         })
     }
 
-    fn read_here<R: Read + Seek>(mut reader: R, header: Header) -> Result<FileNames> {
+    fn read_here<R: Read + Seek>(mut reader: R, header: &Header) -> Result<FileNames> {
         Ok(FileNames(if header.has(ArchiveFlag::IncludeFileNames) {
-            let names = NullTerminated::read_many(&mut reader, header.file_count as usize, ())?;
+            let names = NullTerminated::read_many(&mut reader, header.file_count as usize, &())?;
             names.iter()
                 .map(BZString::from)
                 .map(|name| (Hash::from(&name), name.clone()))
@@ -95,19 +96,19 @@ pub struct FolderRecords(pub Vec<FolderRecord>);
 
 impl Readable for FolderRecords {
     type ReadableArgs = Header;
-    fn offset(_: Header) -> Option<u64> {
-        Header::offset(()).map(|o| o + size_of::<Header>() as u64)
+    fn offset(_: &Header) -> Option<u64> {
+        Header::offset(&()).map(|o| o + size_of::<Header>() as u64)
     }
 
-    fn read_here<R: Read + Seek>(mut reader: R, header: Header) -> Result<FolderRecords> {
+    fn read_here<R: Read + Seek>(mut reader: R, header: &Header) -> Result<FolderRecords> {
         let hasdir_name = header.has(ArchiveFlag::IncludeDirectoryNames);
         
-        let raw_dirs = RawFolderRecord::read_many(&mut reader, header.folder_count as usize, ())?;
+        let raw_dirs = RawFolderRecord::read_many(&mut reader, header.folder_count as usize, &())?;
         let mut dir_contents = Vec::new();
 
         for dir in raw_dirs {
             reader.seek(SeekFrom::Start(dir.offset as u64- header.total_file_name_length as u64))?;
-            let dir_content = FolderContentRecord::read(&mut reader, (hasdir_name, dir.file_count))?;
+            let dir_content = FolderContentRecord::read(&mut reader, &(hasdir_name, dir.file_count))?;
             dir_contents.push(FolderRecord {
                 name_hash: dir.name_hash,
                 name: dir_content.name,
@@ -118,7 +119,7 @@ impl Readable for FolderRecords {
     }
 }
 
-pub fn file_tree<R: Read + Seek>(mut reader: R, header: Header) -> Result<Vec<BsaDir>> {
+pub fn file_tree<R: Read + Seek>(mut reader: R, header: &Header) -> Result<Vec<BsaDir>> {
     let FolderRecords(dirs) = FolderRecords::read(&mut reader, header)?;
     let FileNames(file_names) = FileNames::read(&mut reader, header)?;
     
@@ -152,4 +153,23 @@ pub fn file_tree<R: Read + Seek>(mut reader: R, header: Header) -> Result<Vec<Bs
         }
     }).collect::<Vec<_>>();
     Ok(files)
+}
+
+pub fn extract<R: Read + Seek, W: Write>(includes_name: bool, file: BsaFile, mut reader: R, mut writer: W) -> Result<()> {
+    reader.seek(SeekFrom::Start(file.offset))?;
+
+    // skip name field
+    if includes_name {
+        let name_len: u8 = read_struct(&mut reader)?;
+        reader.seek(SeekFrom::Current(name_len as i64))?;
+    }
+
+    if file.compressed {
+        let mut decoder = lz4::Decoder::new(&mut reader)?;
+        copy(&mut decoder, &mut writer)?;
+    } else {
+        let mut sub_reader = reader.take(file.size as u64);
+        copy(&mut sub_reader, &mut writer)?;
+    }
+    Ok(())
 }

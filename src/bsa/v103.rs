@@ -122,10 +122,10 @@ impl<AF: ToArchiveBitFlags> Has<FileFlag> for V10XHeader<AF> {
     }
 }
 impl<AF: ToArchiveBitFlags + fmt::Debug> bin::Readable for V10XHeader<AF> {
-    fn offset(_: ()) -> Option<u64> {
+    fn offset(_: &()) -> Option<u64> {
         Some(size_of::<MagicNumber>() as u64 + size_of::<Version>() as u64)
     }
-    fn read_here<R: Read + Seek>(mut reader: R, _: ()) -> Result<V10XHeader<AF>> {
+    fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> Result<V10XHeader<AF>> {
         let raw: RawHeader = bin::read_struct(&mut reader)?;
         Ok(V10XHeader::<AF>::from(raw))
     }

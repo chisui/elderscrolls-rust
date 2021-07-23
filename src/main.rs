@@ -1,7 +1,9 @@
 use std::io::{BufReader, Result};
+use std::fs;
 use std::fs::File;
 use std::path::PathBuf;
 use structopt::StructOpt;
+use glob::{Pattern, MatchOptions};
 
 use bsa::Bsa;
 
@@ -34,24 +36,10 @@ struct InfoCmd {
 }
 impl Cmd for InfoCmd {
     fn exec(self) -> Result<()> {
-        let file = File::open(self.file).expect("file not found!");
-        let mut buffer = BufReader::new(file);
+        let mut reader = open(self.file)?;
 
-        let bsa = Bsa::open(&mut buffer)?;
-        match bsa {
-            Bsa::V103(header) => {
-                println!("BSA Version v103, used by: TES IV: Oblivion");
-                println!("{}", header);
-            },
-            Bsa::V104(header) => {
-                println!("BSA Version v104, used by: Fallout 3, Fallout: NV, TES V: Skyrim");
-                println!("{}", header);
-            },
-            Bsa::V105(header) => {
-                println!("BSA Version v105, used by: TES V: Skyrim Special Edition");
-                println!("{}", header);
-            },
-        }
+        let bsa = Bsa::open(&mut reader)?;
+        println!("{}", bsa);
         Ok(())
     }
 }
@@ -67,11 +55,10 @@ struct ListCmd {
 }
 impl Cmd for ListCmd {
     fn exec(self) -> Result<()> {
-        let file = File::open(self.file).expect("file not found!");
-        let mut buffer = BufReader::new(file);
+        let mut reader = open(self.file)?;
 
-        let bsa = Bsa::open(&mut buffer)?;
-        let dirs = bsa.read_dirs(&mut buffer)?;
+        let bsa = Bsa::open(&mut reader)?;
+        let dirs = bsa.read_dirs(&mut reader)?;
         for dir in dirs {
             for file in dir.files {
                 if self.attributes {
@@ -89,25 +76,55 @@ impl Cmd for ListCmd {
 #[derive(Debug, StructOpt)]
 #[structopt()]
 struct ExtractCmd {
-    #[structopt(short, long, parse(from_os_str))]
+    #[structopt(short, long, parse(from_os_str), default_value=".")]
     output: PathBuf,
     
     #[structopt(parse(from_os_str))]
     file: PathBuf,
     
-    #[structopt(parse(from_os_str))]
-    paths: Vec<PathBuf>,
+    #[structopt(parse(try_from_str))]
+    paths: Vec<Pattern>,
+}
+fn should_extract(paths: &Vec<Pattern>, path: &String) -> bool {
+    let match_opt = MatchOptions {
+        case_sensitive: false,
+        require_literal_leading_dot: false,
+        require_literal_separator: false,
+    };
+    paths.is_empty()
+        || paths.iter().any(|p|
+            p.matches_with(&path, match_opt)
+            || path.starts_with(p.as_str()))
 }
 impl Cmd for ExtractCmd {
     fn exec(self) -> Result<()> {
-        let file = File::open(self.file).expect("file not found!");
-        let mut buffer = BufReader::new(file);
+        let mut reader = open(self.file)?;
 
-        let bsa = Bsa::open(&mut buffer)?;
-        let dirs = bsa.read_dirs(&mut buffer)?;
+        let bsa = Bsa::open(&mut reader)?;
+        let dirs = bsa.read_dirs(&mut reader)?;
 
+        fs::create_dir_all(&self.output)?;
 
+        for dir in dirs {
+            for file in dir.files {
+                let file_path = format!("{}/{}", dir.name, file.name);
+                if should_extract(&self.paths, &file_path) {
+                    println!("{}", file_path);
+                    let mut path_buf = PathBuf::from(&self.output);
+                    path_buf.push(format!("{}", dir.name));
+                    fs::create_dir_all(&path_buf)?;
+                    path_buf.push(format!("{}", file.name));
+                    bsa.extract(file, path_buf.as_path(), &mut reader)?;
+                }
+            }
+        }
 
         Ok(())
     }
+}
+
+
+fn open(file: PathBuf) -> Result<BufReader<File>> {
+    let file = File::open(file)?;
+    Ok(BufReader::new(file))
 }
