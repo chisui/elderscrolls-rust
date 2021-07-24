@@ -11,13 +11,21 @@ pub mod v105;
 use v103::Has;
 use std::path::Path;
 use std::fs::File;
-use std::io::{Read, Seek, Result, Error, ErrorKind};
-use std::fmt;
+use std::io::{Read, Seek, Result};
+use std::{error, fmt};
 use archive::{BsaDir, BsaFile};
-use bin::Readable;
+use bin::{err, Readable};
 use version::Version;
 
 
+#[derive(Debug)]
+struct UnsupportedVersion(pub Version);
+impl error::Error for UnsupportedVersion {}
+impl fmt::Display for UnsupportedVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Unsupported Version {}", self.0)
+    }
+}
 pub enum Bsa {
     V103(v103::Header),
     V104(v104::Header), 
@@ -39,14 +47,15 @@ impl Bsa {
                 let header = v105::Header::read(&mut reader, &())?;
                 Ok(Bsa::V105(header))
             }
-            v => Err(Error::new(ErrorKind::InvalidData, format!("Unsupported version {}", v)))
+            v => err(UnsupportedVersion(v)),
         }
     }
 
     pub fn read_dirs<R: Read + Seek>(&self, mut reader: R) -> Result<Vec<BsaDir>> {
         match self {
+            Bsa::V103(_) => err(UnsupportedVersion(Version::V103)),
+            Bsa::V104(_) => err(UnsupportedVersion(Version::V104)),
             Bsa::V105(header) => v105::file_tree(&mut reader, header),
-            _ => Err(Error::new(ErrorKind::InvalidData, "Unsupported version")),
         }
     }
 

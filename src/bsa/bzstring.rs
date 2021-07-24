@@ -1,9 +1,9 @@
-use std::io::{Read, Seek, SeekFrom, Result, Error, ErrorKind};
+use std::io::{Read, Seek, SeekFrom, Result, Error};
 use std::str;
 use std::convert::TryFrom;
 use std::fmt;
 
-use super::bin::{read_struct, Readable};
+use super::bin::{err, read_struct, Readable};
 
 
 #[derive(Clone)]
@@ -27,7 +27,7 @@ impl TryFrom<Vec<u8>> for BZString {
             Ok(s) => Ok(BZString {
                 value: s.to_owned()
             }),
-            Err(e) => Err(Error::new(ErrorKind::InvalidData, format!("{}, {:x?}", e, chars))),
+            Err(e) => err(e),
         }
     }
 }

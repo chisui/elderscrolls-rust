@@ -37,7 +37,6 @@ struct InfoCmd {
 impl Cmd for InfoCmd {
     fn exec(self) -> Result<()> {
         let mut reader = open(self.file)?;
-
         let bsa = Bsa::open(&mut reader)?;
         println!("{}", bsa);
         Ok(())

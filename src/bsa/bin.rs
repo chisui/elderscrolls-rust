@@ -1,5 +1,6 @@
 use std::io::{Read, Seek, SeekFrom, Result, Error, ErrorKind};
-use std::fmt::Debug;
+use std::fmt;
+use std::error;
 use bytemuck::Pod;
 
 
@@ -10,7 +11,16 @@ pub fn read_struct<S: Pod, R: Read + Seek>(mut reader: R) -> Result<S> {
     Ok(val)
 }
 
-pub trait Readable: Sized + Debug
+#[derive(Debug)]
+struct PositionedError(pub Error, pub u64);
+impl error::Error for PositionedError {}
+impl fmt::Display for PositionedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} at: {:08}", self.0, self.1)
+    }
+}
+
+pub trait Readable: Sized + fmt::Debug
 where <Self as Readable>::ReadableArgs: Copy {
     type ReadableArgs = ();
 
@@ -27,7 +37,7 @@ where <Self as Readable>::ReadableArgs: Copy {
             Ok(v) => Ok(v),
             Err(e) => {
                 let pos = reader.stream_position()?;
-                Err(Error::new(ErrorKind::InvalidData, format!("{} at: {:08}", e, pos)))
+                err(PositionedError(e, pos))
             },
         }        
     }
@@ -42,4 +52,9 @@ where <Self as Readable>::ReadableArgs: Copy {
         }
         Ok(vals)
     }
+}
+
+pub fn err<E, R>(error: E) -> Result<R> 
+where E: Into<Box<dyn error::Error + Send + Sync>> {
+    Err(Error::new(ErrorKind::InvalidData, error))
 }
