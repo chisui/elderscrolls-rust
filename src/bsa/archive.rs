@@ -1,7 +1,7 @@
 use std::fmt;
 
-use super::bzstring::BZString;
 use super::hash::Hash;
+use super::bzstring::BZString;
 
 
 pub enum FileId {
@@ -17,7 +17,7 @@ impl fmt::Debug for FileId {
 impl fmt::Display for FileId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FileId::HashId(Hash(h))             => write!(f, "#{:016x}", h),
+            FileId::HashId(h)             => write!(f, "#{}", h),
             FileId::StringId(BZString{ value }) => {
                 write!(f, "{}", value.replace('\\', "/"))
             },

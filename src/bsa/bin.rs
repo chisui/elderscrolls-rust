@@ -4,7 +4,7 @@ use std::error;
 use bytemuck::Pod;
 
 
-pub fn read_struct<S: Pod, R: Read + Seek>(mut reader: R) -> Result<S> {
+pub fn read_struct<S: Pod, R: Read>(mut reader: R) -> Result<S> {
     let mut val = S::zeroed();
     let slice = bytemuck::bytes_of_mut(&mut val);
     reader.read_exact(slice)?;

@@ -6,7 +6,7 @@ use std::fmt;
 use super::bin::{err, read_struct, Readable};
 
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct BZString {
     pub value: String
 }

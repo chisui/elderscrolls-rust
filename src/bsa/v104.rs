@@ -5,7 +5,7 @@ use enumflags2::{bitflags, BitFlags};
 
 use super::v103::{V10XHeader, ToArchiveBitFlags};
 use super::bin;
-pub use super::hash::Hash;
+use super::hash::Hash;
 pub use super::v103::{FileFlag, FolderRecord, RawHeader, Has, BZString, extract};
 
 

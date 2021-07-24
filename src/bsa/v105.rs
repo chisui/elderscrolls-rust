@@ -8,8 +8,7 @@ use lz4;
 use super::bzstring::NullTerminated;
 use super::archive::{BsaDir, BsaFile, FileId};
 pub use super::bin::{read_struct, Readable};
-pub use super::hash;
-pub use super::hash::Hash;
+pub use super::hash::{hash_v10x, Hash};
 pub use super::v104::{ArchiveFlag, ArchiveFlag::CompressedArchive, FileFlag, Header, Has, RawHeader, FileRecord, BZString};
 
 
@@ -83,7 +82,7 @@ impl Readable for FileNames {
             let names = NullTerminated::read_many(&mut reader, header.file_count as usize, &())?;
             names.iter()
                 .map(BZString::from)
-                .map(|name| (Hash::from(&name), name.clone()))
+                .map(|name| (hash_v10x(name.value.as_str()), name.clone()))
                 .collect()
         } else {
             HashMap::new()

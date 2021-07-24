@@ -8,7 +8,6 @@ use enumflags2::{bitflags, BitFlags, BitFlag};
 use super::bin;
 use super::version::{Version, MagicNumber};
 use super::archive::{BsaFile};
-pub use super::hash::Hash;
 pub use super::bzstring::BZString;
 
 
@@ -152,7 +151,7 @@ pub type Header = V10XHeader<ArchiveFlag>;
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
 pub struct FolderRecord {
-    pub name_hash: Hash,
+    pub name_hash: u64,
     pub file_count: u32,
     pub offset: u32,
 }
