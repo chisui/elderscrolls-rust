@@ -8,12 +8,9 @@ pub mod v103;
 pub mod v104;
 pub mod v105;
 
-use v103::Has;
-use std::path::Path;
-use std::fs::File;
-use std::io::{Read, Seek, Result};
+use std::io::{Read, Seek, Write, Result};
 use std::{error, fmt};
-use archive::{BsaDir, BsaFile};
+use archive::{Bsa, BsaDir, BsaFile};
 use bin::{err, Readable};
 use version::Version;
 
@@ -26,64 +23,61 @@ impl fmt::Display for UnsupportedVersion {
         write!(f, "Unsupported Version {}", self.0)
     }
 }
-pub enum Bsa {
-    V103(v103::Header),
-    V104(v104::Header), 
-    V105(v105::Header),
+pub enum SomeBsa {
+    V103(v103::V103),
+    V104(v104::V104),
+    V105(v105::V105),
 }
-impl Bsa {
-    pub fn open<R: Read + Seek>(mut reader: R) -> Result<Self> {
+impl fmt::Display for SomeBsa {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SomeBsa::V103(bsa) => bsa.fmt(f),
+            SomeBsa::V104(bsa) => bsa.fmt(f),
+            SomeBsa::V105(bsa) => bsa.fmt(f),
+        }
+    }
+}
+impl Bsa for SomeBsa {
+    fn open<R: Read + Seek>(mut reader: R) -> Result<SomeBsa> {
         let version = Version::read(&mut reader, &())?;
         match version {
             Version::V103 => {
-                let header = v103::Header::read(&mut reader, &())?;
-                Ok(Bsa::V103(header))
-            }
+                let bsa = v103::V103::open(&mut reader)?;
+                Ok(SomeBsa::V103(bsa))
+            },
             Version::V104 => {
-                let header = v104::Header::read(&mut reader, &())?;
-                Ok(Bsa::V104(header))
-            }
+                let bsa = v104::V104::open(&mut reader)?;
+                Ok(SomeBsa::V104(bsa))
+            },
             Version::V105 => {
-                let header = v105::Header::read(&mut reader, &())?;
-                Ok(Bsa::V105(header))
-            }
+                let bsa = v105::V105::open(&mut reader)?;
+                Ok(SomeBsa::V105(bsa))
+            },
             v => err(UnsupportedVersion(v)),
         }
     }
 
-    pub fn read_dirs<R: Read + Seek>(&self, mut reader: R) -> Result<Vec<BsaDir>> {
+    fn version(&self) -> Version {
         match self {
-            Bsa::V103(_) => err(UnsupportedVersion(Version::V103)),
-            Bsa::V104(_) => err(UnsupportedVersion(Version::V104)),
-            Bsa::V105(header) => v105::file_tree(&mut reader, header),
+            SomeBsa::V103(bsa) => bsa.version(),
+            SomeBsa::V104(bsa) => bsa.version(),
+            SomeBsa::V105(bsa) => bsa.version(),
         }
     }
 
-    pub fn extract<R: Read + Seek>(&self, file: BsaFile, out_path: &Path, reader: R) -> Result<()> {
-        let out_file = File::create(out_path)?;
+    fn read_dirs<R: Read + Seek>(&self, reader: R) -> Result<Vec<BsaDir>> {
         match self {
-            Bsa::V103(header) => v103::extract(!header.has(v103::ArchiveFlag::IncludeFileNames), file, reader, out_file),
-            Bsa::V104(header) => v104::extract(!header.has(v104::ArchiveFlag::IncludeFileNames), file, reader, out_file),
-            Bsa::V105(header) => v105::extract(!header.has(v105::ArchiveFlag::IncludeFileNames), file, reader, out_file),
+            SomeBsa::V103(bsa) => bsa.read_dirs(reader),
+            SomeBsa::V104(bsa) => bsa.read_dirs(reader),
+            SomeBsa::V105(bsa) => bsa.read_dirs(reader),
         }
     }
-}
 
-impl fmt::Display for Bsa {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn extract<R: Read + Seek, W: Write>(&self, file: BsaFile, writer: W, reader: R) -> Result<()> {
         match self {
-            Bsa::V103(header) => {
-                writeln!(f, "BSA v103 file, format used by: TES IV: Oblivion")?;
-                writeln!(f, "{}", header)
-            },
-            Bsa::V104(header) => {
-                writeln!(f, "BSA v104 file, format used by: Fallout 3, Fallout: NV, TES V: Skyrim")?;
-                writeln!(f, "{}", header)
-            },
-            Bsa::V105(header) => {
-                writeln!(f, "BSA v105 file, format used by: TES V: Skyrim Special Edition")?;
-                writeln!(f, "{}", header)
-            },
+            SomeBsa::V103(bsa) => bsa.extract(file, writer, reader),
+            SomeBsa::V104(bsa) => bsa.extract(file, writer, reader),
+            SomeBsa::V105(bsa) => bsa.extract(file, writer, reader),
         }
     }
 }

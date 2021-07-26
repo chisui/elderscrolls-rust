@@ -1,11 +1,13 @@
 use std::io::{BufReader, Result};
 use std::fs;
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 use glob::{Pattern, MatchOptions};
 
-use bsa::Bsa;
+use bsa;
+use bsa::SomeBsa;
+use bsa::archive::Bsa;
 
 
 #[derive(Debug, StructOpt)]
@@ -36,8 +38,8 @@ struct InfoCmd {
 }
 impl Cmd for InfoCmd {
     fn exec(self) -> Result<()> {
-        let mut reader = open(self.file)?;
-        let bsa = Bsa::open(&mut reader)?;
+        let mut reader = open_read(self.file)?;
+        let bsa = SomeBsa::open(&mut reader)?;
         println!("{}", bsa);
         Ok(())
     }
@@ -54,9 +56,9 @@ struct ListCmd {
 }
 impl Cmd for ListCmd {
     fn exec(self) -> Result<()> {
-        let mut reader = open(self.file)?;
+        let mut reader = open_read(self.file)?;
 
-        let bsa = Bsa::open(&mut reader)?;
+        let bsa = SomeBsa::open(&mut reader)?;
         let dirs = bsa.read_dirs(&mut reader)?;
         for dir in dirs {
             for file in dir.files {
@@ -97,9 +99,9 @@ fn should_extract(paths: &Vec<Pattern>, path: &String) -> bool {
 }
 impl Cmd for ExtractCmd {
     fn exec(self) -> Result<()> {
-        let mut reader = open(self.file)?;
+        let mut reader = open_read(self.file)?;
 
-        let bsa = Bsa::open(&mut reader)?;
+        let bsa = SomeBsa::open(&mut reader)?;
         let dirs = bsa.read_dirs(&mut reader)?;
 
         fs::create_dir_all(&self.output)?;
@@ -113,7 +115,8 @@ impl Cmd for ExtractCmd {
                     path_buf.push(format!("{}", dir.name));
                     fs::create_dir_all(&path_buf)?;
                     path_buf.push(format!("{}", file.name));
-                    bsa.extract(file, path_buf.as_path(), &mut reader)?;
+                    let mut writer = open_write(path_buf.as_path())?;
+                    bsa.extract(file, &mut writer, &mut reader)?;
                 }
             }
         }
@@ -122,8 +125,11 @@ impl Cmd for ExtractCmd {
     }
 }
 
-
-fn open(file: PathBuf) -> Result<BufReader<File>> {
+fn open_read(file: PathBuf) -> Result<BufReader<File>> {
     let file = File::open(file)?;
     Ok(BufReader::new(file))
+}
+
+fn open_write(file: &Path) -> Result<File> {
+    File::create(file)
 }

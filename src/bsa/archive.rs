@@ -1,6 +1,8 @@
+use std::io::{Result, Read, Seek, Write};
 use std::fmt;
 
 use super::hash::Hash;
+use super::version::Version;
 use super::bzstring::BZString;
 
 
@@ -37,4 +39,14 @@ pub struct BsaFile {
     pub compressed: bool,
     pub offset: u64,
     pub size: u32,
+}
+
+pub trait Bsa: fmt::Display + Sized {
+    fn open<R: Read + Seek>(reader: R) -> Result<Self>;
+
+    fn version(&self) -> Version;
+
+    fn read_dirs<R: Read + Seek>(&self, reader: R) -> Result<Vec<BsaDir>>;
+
+    fn extract<R: Read + Seek, W: Write>(&self, file: BsaFile, writer: W, reader: R) -> Result<()>;
 }

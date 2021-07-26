@@ -1,11 +1,14 @@
-use std::io::{Read, Seek, Result};
+use std::io::{Read, Seek, Write, Result};
 use std::str;
+use std::fmt;
 use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags};
 
 use super::v103::{V10XHeader, ToArchiveBitFlags};
-use super::bin;
+use super::bin::{self, Readable};
+use super::version::Version;
 use super::hash::Hash;
+use super::archive::{Bsa, BsaDir, BsaFile};
 pub use super::v103::{FileFlag, FolderRecord, RawHeader, Has, BZString, extract};
 
 
@@ -62,5 +65,30 @@ impl FileRecord {
 impl bin::Readable for FileRecord {
     fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> Result<FileRecord> {
         bin::read_struct(&mut reader)
+    }
+}
+
+
+pub struct V104(pub Header);
+impl Bsa for V104 {
+    fn open<R: Read + Seek>(reader: R) -> Result<V104> {
+        let header = Header::read(reader, &())?;
+        Ok(V104(header))
+    }
+
+    fn version(&self) -> Version { Version::V104 }
+
+    fn read_dirs<R: Read + Seek>(&self, _: R) -> Result<Vec<BsaDir>> {
+        Ok(vec![])
+    }
+
+    fn extract<R: Read + Seek, W: Write>(&self, _: BsaFile, _: W, _: R) -> Result<()> {
+        Ok(())
+    }
+} 
+impl fmt::Display for V104 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "BSA v104 file, format used by: TES IV: Oblivion")?;
+        writeln!(f, "{}", self.0)
     }
 }

@@ -5,15 +5,15 @@ use std::fmt;
 use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
-use super::bin;
+use super::bin::{self, Readable};
 use super::version::{Version, MagicNumber};
-use super::archive::{BsaFile};
+use super::archive::{Bsa, BsaDir, BsaFile};
 pub use super::bzstring::BZString;
 
 
 #[bitflags]
 #[repr(u32)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ArchiveFlag {
     #[doc = "The game may not load a BSA without this bit set."]
     pub IncludeDirectoryNames = 0x1,
@@ -154,6 +154,30 @@ pub struct FolderRecord {
     pub name_hash: u64,
     pub file_count: u32,
     pub offset: u32,
+}
+
+pub struct V103(pub Header);
+impl Bsa for V103 {
+    fn open<R: Read + Seek>(reader: R) -> Result<V103> {
+        let header = Header::read(reader, &())?;
+        Ok(V103(header))
+    }
+
+    fn version(&self) -> Version { Version::V103 }
+    
+    fn read_dirs<R: Read + Seek>(&self, _: R) -> Result<Vec<BsaDir>> {
+        Ok(vec![])
+    }
+
+    fn extract<R: Read + Seek, W: Write>(&self, _: BsaFile, _: W, _: R) -> Result<()> {
+        Ok(())
+    }
+}
+impl fmt::Display for V103 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "BSA v103 file, format used by: TES IV: Oblivion")?;
+        writeln!(f, "{}", self.0)
+    }
 }
 
 pub fn extract<R: Read + Seek, W: Write>(includes_name: bool, file: BsaFile, mut reader: R, mut writer: W) -> Result<()> {

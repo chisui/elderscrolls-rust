@@ -1,13 +1,15 @@
 use std::io::{Read, Seek, SeekFrom, Result, Write, copy};
 use std::mem::size_of;
+use std::fmt;
 use std::option::Option;
 use std::collections::HashMap;
 use bytemuck::{Zeroable, Pod};
 use lz4;
 
 use super::bzstring::NullTerminated;
-use super::archive::{BsaDir, BsaFile, FileId};
+use super::archive::{Bsa, BsaDir, BsaFile, FileId};
 pub use super::bin::{read_struct, Readable};
+pub use super::version::Version;
 pub use super::hash::{hash_v10x, Hash};
 pub use super::v104::{ArchiveFlag, ArchiveFlag::CompressedArchive, FileFlag, Header, Has, RawHeader, FileRecord, BZString};
 
@@ -118,61 +120,77 @@ impl Readable for FolderRecords {
     }
 }
 
-pub fn file_tree<R: Read + Seek>(mut reader: R, header: &Header) -> Result<Vec<BsaDir>> {
-    let FolderRecords(dirs) = FolderRecords::read(&mut reader, header)?;
-    let FileNames(file_names) = FileNames::read(&mut reader, header)?;
-    
-    let files = dirs.iter().map(|dir| {
-        BsaDir {
 
-            name: dir.name
-                .clone()
-                .map(FileId::StringId)
-                .unwrap_or(FileId::HashId(dir.name_hash)),
-            
-            files: dir.files.iter().map(|file| {
+pub struct V105(pub Header);
+impl Bsa for V105 {
+    fn open<R: Read + Seek>(reader: R) -> Result<V105> {
+        let header = Header::read(reader, &())?;
+        Ok(V105(header))
+    }
+    fn version(&self) -> Version { Version::V105 }
+
+    fn read_dirs<R: Read + Seek>(&self, mut reader: R) -> Result<Vec<BsaDir>> {
+        let FolderRecords(dirs) = FolderRecords::read(&mut reader, &self.0)?;
+        let FileNames(file_names) = FileNames::read(&mut reader, &self.0)?;
+        
+        let files = dirs.iter().map(|dir| {
+            BsaDir {
+
+                name: dir.name
+                    .clone()
+                    .map(FileId::StringId)
+                    .unwrap_or(FileId::HashId(dir.name_hash)),
                 
-                let compressed = if header.has(CompressedArchive) {
-                    !file.is_compression_bit_set()
-                } else {
-                    file.is_compression_bit_set()
-                };
+                files: dir.files.iter().map(|file| {
+                    
+                    let compressed = if self.0.has(CompressedArchive) {
+                        !file.is_compression_bit_set()
+                    } else {
+                        file.is_compression_bit_set()
+                    };
 
-                BsaFile {
-                    name: file_names.get(&file.name_hash)
-                        .map(|n| n.clone())
-                        .map(FileId::StringId)
-                        .unwrap_or(FileId::HashId(file.name_hash)),
-                    compressed,
-                    offset: file.offset as u64,
-                    size: file.size,
-                }
+                    BsaFile {
+                        name: file_names.get(&file.name_hash)
+                            .map(|n| n.clone())
+                            .map(FileId::StringId)
+                            .unwrap_or(FileId::HashId(file.name_hash)),
+                        compressed,
+                        offset: file.offset as u64,
+                        size: file.size,
+                    }
 
-            }).collect::<Vec<_>>(),
+                }).collect::<Vec<_>>(),
+            }
+        }).collect::<Vec<_>>();
+        Ok(files)
+    }
+
+    fn extract<R: Read + Seek, W: Write>(&self, file: BsaFile, mut writer: W, mut reader: R) -> Result<()> {
+        reader.seek(SeekFrom::Start(file.offset))?;
+
+        // skip name field
+        if self.0.has(ArchiveFlag::IncludeFileNames) {
+            let name_len: u8 = read_struct(&mut reader)?;
+            reader.seek(SeekFrom::Current(name_len as i64))?;
         }
-    }).collect::<Vec<_>>();
-    Ok(files)
-}
-
-pub fn extract<R: Read + Seek, W: Write>(includes_name: bool, file: BsaFile, mut reader: R, mut writer: W) -> Result<()> {
-    reader.seek(SeekFrom::Start(file.offset))?;
-
-    // skip name field
-    if includes_name {
-        let name_len: u8 = read_struct(&mut reader)?;
-        reader.seek(SeekFrom::Current(name_len as i64))?;
+    
+        if file.compressed {
+            // skip uncompressed size field
+            reader.seek(SeekFrom::Current(4))?;
+    
+            let mut sub_reader = reader.take(file.size as u64);
+            let mut decoder = lz4::Decoder::new(&mut sub_reader)?;
+            copy(&mut decoder, &mut writer)?;
+        } else {
+            let mut sub_reader = reader.take(file.size as u64);
+            copy(&mut sub_reader, &mut writer)?;
+        }
+        Ok(())
     }
-
-    if file.compressed {
-        // skip uncompressed size field
-        reader.seek(SeekFrom::Current(4))?;
-
-        let mut sub_reader = reader.take(file.size as u64);
-        let mut decoder = lz4::Decoder::new(&mut sub_reader)?;
-        copy(&mut decoder, &mut writer)?;
-    } else {
-        let mut sub_reader = reader.take(file.size as u64);
-        copy(&mut sub_reader, &mut writer)?;
+} 
+impl fmt::Display for V105 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "BSA v105 file, format used by: TES IV: Oblivion")?;
+        writeln!(f, "{}", self.0)
     }
-    Ok(())
 }

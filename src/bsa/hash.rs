@@ -65,14 +65,6 @@ fn hash_v10x_parts(chars: &str) -> (&[u8], &[u8]) {
     (bytes, &[])
 }
 
-/// http://www.partow.net/programming/hashfunctions/index.html#SDBMHashFunction
-fn hash_sdbm(bytes: &[u8]) -> u32 {
-    let mut hash: u32 = 0;
-    for c in bytes {
-        hash = hash.wrapping_mul(0x01003f) + *c as u32;
-    }
-    hash
-}
 
 pub fn hash_v100(bytes: &[u8]) -> Hash {
     let mid_point = bytes.len() >> 1;
@@ -94,6 +86,15 @@ pub fn hash_v100(bytes: &[u8]) -> Hash {
             right
         }),
     }
+}
+
+/// http://www.partow.net/programming/hashfunctions/index.html#SDBMHashFunction
+fn hash_sdbm(bytes: &[u8]) -> u32 {
+    let mut hash: u32 = 0;
+    for c in bytes {
+        hash = hash.wrapping_mul(0x0001003f) + *c as u32;
+    }
+    hash
 }
 
 const fn rot_right(value: u32, num_bits: u32) -> u32 {
