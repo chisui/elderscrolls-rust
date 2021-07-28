@@ -88,7 +88,7 @@ impl Bsa for V104 {
 } 
 impl fmt::Display for V104 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "BSA v104 file, format used by: TES IV: Oblivion")?;
+        writeln!(f, "BSA v104 file, format used by: TES V: Skyrim, Fallout 3 and Fallout: New Vegas")?;
         writeln!(f, "{}", self.0)
     }
 }
