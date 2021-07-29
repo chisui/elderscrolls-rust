@@ -163,9 +163,8 @@ where RawDirRecord: From<RDR> {
 
     fn read_dirs<R: Read + Seek>(&self, mut reader: R) -> Result<Vec<BsaDir>> {
         let hasdir_name = self.header.has(AF::includes_file_names());
-        reader.seek(SeekFrom::Current(offset_after_header() as i64))?;
-        let raw_dirs: Vec<RDR> = RDR::read_many(&mut reader, self.header.folder_count as usize, &())?;
-        
+        reader.seek(SeekFrom::Start(offset_after_header() as u64))?;
+        let raw_dirs = RDR::read_many(&mut reader, self.header.folder_count as usize, &())?;
         let file_names = read_file_names(&self, &mut reader)?;
 
         raw_dirs.iter()
@@ -242,7 +241,7 @@ fn offset_file_names<T, AF: ToArchiveBitFlags + fmt::Debug, RDR: Sized>(v10x: &V
 }
 
 fn read_file_names<R: Read + Seek, T, AF: ToArchiveBitFlags, RDR: Sized>(v10x: &V10X<T, AF, RDR>, mut reader: R) -> Result<HashMap<Hash, BZString>> {
-    reader.seek(SeekFrom::Current(offset_file_names(v10x) as i64))?;
+    reader.seek(SeekFrom::Start(offset_file_names(v10x) as u64))?;
     if v10x.header.has(AF::includes_file_names()) {
         let names = NullTerminated::read_many(&mut reader, v10x.header.file_count as usize, &())?;
         Ok(names.iter()

@@ -12,6 +12,14 @@ pub struct Hash {
     left: u32,
     right: u32,
 }
+impl From<u64> for Hash {
+    fn from(n: u64) -> Self {
+        Hash {
+            left: (n << 16) as u32,
+            right: n as u32,
+        }
+    }
+}
 impl fmt::Display for Hash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:08x}{:08x}", self.left, self.right)
@@ -92,7 +100,7 @@ pub fn hash_v100(bytes: &[u8]) -> Hash {
 fn hash_sdbm(bytes: &[u8]) -> u32 {
     let mut hash: u32 = 0;
     for c in bytes {
-        hash = hash.wrapping_mul(0x0001003f) + *c as u32;
+        hash = hash.wrapping_mul(0x01003f) + *c as u32;
     }
     hash
 }

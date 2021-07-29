@@ -28,7 +28,7 @@ impl Readable for RawDirRecord {
 impl From<RawDirRecord> for v10x::RawDirRecord {
     fn from(rec: RawDirRecord) -> Self {
         Self {
-            name_hash: rec.name_hash,
+            name_hash: Hash::from(rec.name_hash),
             file_count: rec.file_count,
             offset: rec.offset,
         }
