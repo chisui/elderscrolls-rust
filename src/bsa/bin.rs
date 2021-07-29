@@ -28,6 +28,11 @@ where <Self as Readable>::ReadableArgs: Copy {
         None
     }
 
+    fn read0<R: Read + Seek>(reader: R) -> Result<Self>
+    where Self::ReadableArgs: Default {
+        Self::read(reader, &Self::ReadableArgs::default())
+    }
+
     fn read<R: Read + Seek>(mut reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self> {
         match Self::offset(args) {
             Some(i) => reader.seek(SeekFrom::Start(i as u64))?,
@@ -44,6 +49,11 @@ where <Self as Readable>::ReadableArgs: Copy {
 
     fn read_here<R: Read + Seek>(reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self>;
     
+    fn read_many0<R: Read + Seek>(reader: R, num: usize) -> Result<Vec<Self>>
+    where Self::ReadableArgs: Default {
+        Self::read_many(reader, num, &Self::ReadableArgs::default())
+    }
+
     fn read_many<R: Read + Seek>(mut reader: R, num: usize, args: &<Self as Readable>::ReadableArgs) -> Result<Vec<Self>> {
         let mut vals = Vec::new();
         for _ in 0..num {

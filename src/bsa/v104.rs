@@ -4,7 +4,7 @@ use std::fmt;
 use enumflags2::{bitflags, BitFlags};
 
 use super::version::Version;
-use super::v10x::{V10X, V10XHeader, RawDirRecord, ToArchiveBitFlags, Versioned};
+use super::v10x::{V10X, V10XHeader, DirRecord, ToArchiveBitFlags, Versioned};
 use super::v103;
 pub use super::v103::BZString;
 
@@ -62,4 +62,4 @@ impl Versioned for V104T {
     }
 }
 
-pub type V104 = V10X<V104T, ArchiveFlag, RawDirRecord>;
+pub type V104 = V10X<V104T, ArchiveFlag, DirRecord>;

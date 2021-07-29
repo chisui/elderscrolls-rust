@@ -116,7 +116,7 @@ impl Cmd for ExtractCmd {
                     fs::create_dir_all(&path_buf)?;
                     path_buf.push(format!("{}", file.name));
                     let mut writer = open_write(path_buf.as_path())?;
-                    bsa.extract(file, &mut writer, &mut reader)?;
+                    bsa.extract(file, &mut reader, &mut writer)?;
                 }
             }
         }

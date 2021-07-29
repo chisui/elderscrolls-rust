@@ -48,5 +48,5 @@ pub trait Bsa: fmt::Display + Sized {
 
     fn read_dirs<R: Read + Seek>(&self, reader: R) -> Result<Vec<BsaDir>>;
 
-    fn extract<R: Read + Seek, W: Write>(&self, file: BsaFile, writer: W, reader: R) -> Result<()>;
+    fn extract<R: Read + Seek, W: Write>(&self, file: BsaFile, reader: R, writer: W) -> Result<()>;
 }

@@ -25,7 +25,7 @@ impl Readable for RawDirRecord {
         read_struct(reader)
     }
 }
-impl From<RawDirRecord> for v10x::RawDirRecord {
+impl From<RawDirRecord> for v10x::DirRecord {
     fn from(rec: RawDirRecord) -> Self {
         Self {
             name_hash: Hash::from(rec.name_hash),

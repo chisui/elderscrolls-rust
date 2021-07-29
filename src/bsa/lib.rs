@@ -74,11 +74,11 @@ impl Bsa for SomeBsa {
         }
     }
 
-    fn extract<R: Read + Seek, W: Write>(&self, file: BsaFile, writer: W, reader: R) -> Result<()> {
+    fn extract<R: Read + Seek, W: Write>(&self, file: BsaFile, reader: R, writer: W) -> Result<()> {
         match self {
-            SomeBsa::V103(bsa) => bsa.extract(file, writer, reader),
-            SomeBsa::V104(bsa) => bsa.extract(file, writer, reader),
-            SomeBsa::V105(bsa) => bsa.extract(file, writer, reader),
+            SomeBsa::V103(bsa) => bsa.extract(file, reader, writer),
+            SomeBsa::V104(bsa) => bsa.extract(file, reader, writer),
+            SomeBsa::V105(bsa) => bsa.extract(file, reader, writer),
         }
     }
 }

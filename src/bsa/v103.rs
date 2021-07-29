@@ -5,7 +5,7 @@ use enumflags2::{bitflags, BitFlags};
 use libflate::zlib;
 
 use super::version::Version;
-use super::v10x::{V10X, ToArchiveBitFlags, Versioned, RawDirRecord};
+use super::v10x::{V10X, ToArchiveBitFlags, Versioned, DirRecord};
 pub use super::v10x::V10XHeader;
 pub use super::bzstring::BZString;
 
@@ -46,7 +46,7 @@ impl ToArchiveBitFlags for ArchiveFlag {
 
 pub type Header = V10XHeader<ArchiveFlag>;
 pub enum V103T {}
-pub type V103 = V10X<V103T, ArchiveFlag, RawDirRecord>;
+pub type V103 = V10X<V103T, ArchiveFlag, DirRecord>;
 impl Versioned for V103T {
     fn version() -> Version { Version::V103 }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
