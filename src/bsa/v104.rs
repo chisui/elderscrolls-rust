@@ -1,9 +1,11 @@
+use std::io::{Read, Write, Result};
 use std::str;
 use std::fmt;
 use enumflags2::{bitflags, BitFlags};
 
 use super::version::Version;
 use super::v10x::{V10X, V10XHeader, RawDirRecord, ToArchiveBitFlags, Versioned};
+use super::v103;
 pub use super::v103::BZString;
 
 
@@ -53,6 +55,10 @@ impl Versioned for V104T {
     fn version() -> Version { Version::V104 }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "BSA v104 file, format used by: TES V: Skyrim, Fallout 3 and Fallout: New Vegas")
+    }
+
+    fn uncompress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64> {
+        v103::V103T::uncompress(reader, writer)
     }
 }
 

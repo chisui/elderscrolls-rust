@@ -1,4 +1,4 @@
-use std::io::{Read, Seek, Result};
+use std::io::{Read, Write, Seek, Result, copy};
 use std::fmt;
 use bytemuck::{Zeroable, Pod};
 
@@ -40,6 +40,11 @@ impl Versioned for V105T {
     fn version() -> Version { Version::V105 }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "BSA v105 file, format used by: TES V: Skyrim Special Edition")
+    }
+
+    fn uncompress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
+        let mut decoder = lz4::Decoder::new(&mut reader)?;
+        copy(&mut decoder, &mut writer)
     }
 }
 

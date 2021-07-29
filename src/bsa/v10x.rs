@@ -138,6 +138,8 @@ pub trait Versioned {
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
     fn version() -> Version;
+
+    fn uncompress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64>;
 }
 impl<T: Versioned, AF: ToArchiveBitFlags + fmt::Debug, RDR: Into<RawDirRecord> + Readable<ReadableArgs=()> + Sized> fmt::Display for V10X<T, AF, RDR> {
     fn fmt(&self, mut f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -217,9 +219,8 @@ where RawDirRecord: From<RDR> {
             // skip uncompressed size field
             reader.seek(SeekFrom::Current(4))?;
     
-            let mut sub_reader = reader.take(file.size as u64);
-            let mut decoder = lz4::Decoder::new(&mut sub_reader)?;
-            copy(&mut decoder, &mut writer)?;
+            let sub_reader = reader.take(file.size as u64);
+            T::uncompress(sub_reader, writer)?;
         } else {
             let mut sub_reader = reader.take(file.size as u64);
             copy(&mut sub_reader, &mut writer)?;
@@ -283,30 +284,6 @@ impl bin::Readable for FileRecord {
         bin::read_struct(&mut reader)
     }
 }
-
-pub fn extract<R: Read + Seek, W: Write>(includes_name: bool, file: BsaFile, mut reader: R, mut writer: W) -> Result<()> {
-    reader.seek(SeekFrom::Start(file.offset))?;
-
-    // skip name field
-    if includes_name {
-        let name_len: u8 = bin::read_struct(&mut reader)?;
-        reader.seek(SeekFrom::Current(name_len as i64))?;
-    }
-    
-    if file.compressed {
-        // skip uncompressed size field
-        reader.seek(SeekFrom::Current(4))?;
-        
-        let mut sub_reader = reader.take(file.size as u64);
-        let mut decoder = libflate::zlib::Decoder::new(&mut sub_reader)?;
-        copy(&mut decoder, &mut writer)?;
-    } else {
-        let mut sub_reader = reader.take(file.size as u64);
-        copy(&mut sub_reader, &mut writer)?;
-    }
-    Ok(())
-}
-
 
 #[derive(Debug)]
 pub struct FolderContentRecord {

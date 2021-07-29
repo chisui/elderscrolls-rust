@@ -1,6 +1,8 @@
+use std::io::{Read, Write, Result, copy};
 use std::str;
 use std::fmt;
 use enumflags2::{bitflags, BitFlags};
+use libflate::zlib;
 
 use super::version::Version;
 use super::v10x::{V10X, ToArchiveBitFlags, Versioned, RawDirRecord};
@@ -49,5 +51,10 @@ impl Versioned for V103T {
     fn version() -> Version { Version::V103 }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "BSA v103 file, format used by: TES IV: Oblivion")
+    }
+
+    fn uncompress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
+        let mut decoder = zlib::Decoder::new(&mut reader)?;
+        copy(&mut decoder, &mut writer)
     }
 }
