@@ -13,7 +13,6 @@ pub struct MagicNumber {
 const MGNR_V100: MagicNumber = MagicNumber{ value: [0,0,1,0] };
 const MGNR_V10X: MagicNumber = MagicNumber{ value: *b"BSA\0" };
 impl bin::Readable for MagicNumber {
-    fn offset(_: &()) -> Option<u64> { Some(0) }
     fn read_here<R: Read + Seek>(reader: R, _: &()) -> Result<MagicNumber> {
         bin::read_struct(reader)
     }

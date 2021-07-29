@@ -24,13 +24,13 @@ pub trait Readable: Sized + fmt::Debug
 where <Self as Readable>::ReadableArgs: Copy {
     type ReadableArgs = ();
 
-    fn offset(_: &<Self as Readable>::ReadableArgs) -> Option<u64> {
+    fn offset(_: &<Self as Readable>::ReadableArgs) -> Option<usize> {
         None
     }
 
     fn read<R: Read + Seek>(mut reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self> {
         match Self::offset(args) {
-            Some(i) => reader.seek(SeekFrom::Start(i))?,
+            Some(i) => reader.seek(SeekFrom::Start(i as u64))?,
             _ => 0,
         };
         match Self::read_here(&mut reader, args) {

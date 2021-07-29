@@ -1,196 +1,46 @@
-use std::io::{Read, Seek, SeekFrom, Result, Write, copy};
-use std::mem::size_of;
+use std::io::{Read, Seek, Result};
 use std::fmt;
-use std::option::Option;
-use std::collections::HashMap;
 use bytemuck::{Zeroable, Pod};
-use lz4;
 
-use super::bzstring::NullTerminated;
-use super::archive::{Bsa, BsaDir, BsaFile, FileId};
+
 pub use super::bin::{read_struct, Readable};
 pub use super::version::Version;
 pub use super::hash::{hash_v10x, Hash};
-pub use super::v104::{ArchiveFlag, ArchiveFlag::CompressedArchive, FileFlag, Header, Has, RawHeader, FileRecord, BZString};
+pub use super::v10x::{V10X, Versioned};
+pub use super::v10x;
+pub use super::v104::{ArchiveFlag, Header, BZString};
 
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
-struct RawFolderRecord {
+pub struct RawDirRecord {
     pub name_hash: Hash,
     pub file_count: u32,
     pub _padding_pre: u32,
     pub offset: u32,
     pub _padding_post: u32,
 }
-impl Readable for RawFolderRecord {
+impl Readable for RawDirRecord {
     fn read_here<R: Read + Seek>(reader: R, _: &()) -> Result<Self> {
         read_struct(reader)
     }
 }
-
-#[derive(Debug)]
-pub struct FolderRecord {
-    pub name_hash: Hash,
-    pub name: Option<BZString>,
-    pub files: Vec<FileRecord>,
-}
-
-#[derive(Debug)]
-pub struct FolderContentRecord {
-    pub name: Option<BZString>,
-    pub file_records: Vec<FileRecord>,
-}
-impl Readable for FolderContentRecord {
-    type ReadableArgs = (bool, u32);
-    fn read_here<R: Read + Seek>(mut reader: R, (has_name, file_count): &(bool, u32)) -> Result<FolderContentRecord> {
-        let name = if *has_name {
-            let n = BZString::read(&mut reader, &())?;
-            Some(n)
-        } else {
-            None
-        };
-        let mut file_records = Vec::with_capacity(*file_count as usize);
-        for _ in 0..*file_count {
-            let file = read_struct(&mut reader)?;
-            file_records.push(file);
+impl From<RawDirRecord> for v10x::RawDirRecord {
+    fn from(rec: RawDirRecord) -> Self {
+        Self {
+            name_hash: rec.name_hash,
+            file_count: rec.file_count,
+            offset: rec.offset,
         }
-        Ok(FolderContentRecord {
-            name,
-            file_records,
-        })
     }
 }
 
-#[derive(Debug)]
-pub struct FileNames(pub HashMap<Hash, BZString>);
-impl Readable for FileNames {
-    type ReadableArgs = Header;
-    fn offset(header: &Header) -> Option<u64> {
-        FolderRecords::offset(header).map(|after_header| { 
-            let foler_records_size = size_of::<RawFolderRecord>() as u64 * header.folder_count as u64;
-            let foler_names_size = if header.has(ArchiveFlag::IncludeDirectoryNames) {
-                header.total_folder_name_length as u64
-                + header.folder_count as u64 // total_folder_name_length does not include size byte
-            } else {
-                0
-            };
-            after_header + foler_records_size + foler_names_size + header.file_count as u64 * size_of::<FileRecord>() as u64
-        })
-    }
-
-    fn read_here<R: Read + Seek>(mut reader: R, header: &Header) -> Result<FileNames> {
-        Ok(FileNames(if header.has(ArchiveFlag::IncludeFileNames) {
-            let names = NullTerminated::read_many(&mut reader, header.file_count as usize, &())?;
-            names.iter()
-                .map(BZString::from)
-                .map(|name| (hash_v10x(name.value.as_str()), name.clone()))
-                .collect()
-        } else {
-            HashMap::new()
-        }))
+pub enum V105T{}
+impl Versioned for V105T {
+    fn version() -> Version { Version::V105 }
+    fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "BSA v105 file, format used by: TES V: Skyrim Special Edition")
     }
 }
 
-#[derive(Debug)]
-pub struct FolderRecords(pub Vec<FolderRecord>);
-
-impl Readable for FolderRecords {
-    type ReadableArgs = Header;
-    fn offset(_: &Header) -> Option<u64> {
-        Header::offset(&()).map(|o| o + size_of::<Header>() as u64)
-    }
-
-    fn read_here<R: Read + Seek>(mut reader: R, header: &Header) -> Result<FolderRecords> {
-        let hasdir_name = header.has(ArchiveFlag::IncludeDirectoryNames);
-        
-        let raw_dirs = RawFolderRecord::read_many(&mut reader, header.folder_count as usize, &())?;
-        let mut dir_contents = Vec::new();
-
-        for dir in raw_dirs {
-            reader.seek(SeekFrom::Start(dir.offset as u64- header.total_file_name_length as u64))?;
-            let dir_content = FolderContentRecord::read(&mut reader, &(hasdir_name, dir.file_count))?;
-            dir_contents.push(FolderRecord {
-                name_hash: dir.name_hash,
-                name: dir_content.name,
-                files: dir_content.file_records,
-            });
-        }
-        Ok(FolderRecords(dir_contents))
-    }
-}
-
-
-pub struct V105(pub Header);
-impl Bsa for V105 {
-    fn open<R: Read + Seek>(reader: R) -> Result<V105> {
-        let header = Header::read(reader, &())?;
-        Ok(V105(header))
-    }
-    fn version(&self) -> Version { Version::V105 }
-
-    fn read_dirs<R: Read + Seek>(&self, mut reader: R) -> Result<Vec<BsaDir>> {
-        let FolderRecords(dirs) = FolderRecords::read(&mut reader, &self.0)?;
-        let FileNames(file_names) = FileNames::read(&mut reader, &self.0)?;
-        
-        let files = dirs.iter().map(|dir| {
-            BsaDir {
-
-                name: dir.name
-                    .clone()
-                    .map(FileId::StringId)
-                    .unwrap_or(FileId::HashId(dir.name_hash)),
-                
-                files: dir.files.iter().map(|file| {
-                    
-                    let compressed = if self.0.has(CompressedArchive) {
-                        !file.is_compression_bit_set()
-                    } else {
-                        file.is_compression_bit_set()
-                    };
-
-                    BsaFile {
-                        name: file_names.get(&file.name_hash)
-                            .map(|n| n.clone())
-                            .map(FileId::StringId)
-                            .unwrap_or(FileId::HashId(file.name_hash)),
-                        compressed,
-                        offset: file.offset as u64,
-                        size: file.size,
-                    }
-
-                }).collect::<Vec<_>>(),
-            }
-        }).collect::<Vec<_>>();
-        Ok(files)
-    }
-
-    fn extract<R: Read + Seek, W: Write>(&self, file: BsaFile, mut writer: W, mut reader: R) -> Result<()> {
-        reader.seek(SeekFrom::Start(file.offset))?;
-
-        // skip name field
-        if self.0.has(ArchiveFlag::IncludeFileNames) {
-            let name_len: u8 = read_struct(&mut reader)?;
-            reader.seek(SeekFrom::Current(name_len as i64))?;
-        }
-    
-        if file.compressed {
-            // skip uncompressed size field
-            reader.seek(SeekFrom::Current(4))?;
-    
-            let mut sub_reader = reader.take(file.size as u64);
-            let mut decoder = lz4::Decoder::new(&mut sub_reader)?;
-            copy(&mut decoder, &mut writer)?;
-        } else {
-            let mut sub_reader = reader.take(file.size as u64);
-            copy(&mut sub_reader, &mut writer)?;
-        }
-        Ok(())
-    }
-} 
-impl fmt::Display for V105 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "BSA v105 file, format used by: TES V: Skyrim Sepecial Edition")?;
-        writeln!(f, "{}", self.0)
-    }
-}
+pub type V105 = V10X<V105T, ArchiveFlag, RawDirRecord>;
