@@ -24,6 +24,11 @@ pub trait Readable: Sized + fmt::Debug
 where <Self as Readable>::ReadableArgs: Copy {
     type ReadableArgs = ();
 
+    fn offset0() -> Option<usize> 
+    where Self::ReadableArgs: Default {
+        Self::offset(&Self::ReadableArgs::default())
+    }
+
     fn offset(_: &<Self as Readable>::ReadableArgs) -> Option<usize> {
         None
     }
@@ -57,7 +62,7 @@ where <Self as Readable>::ReadableArgs: Copy {
     fn read_many<R: Read + Seek>(mut reader: R, num: usize, args: &<Self as Readable>::ReadableArgs) -> Result<Vec<Self>> {
         let mut vals = Vec::new();
         for _ in 0..num {
-            let val = Self::read(&mut reader, args)?;
+            let val = Self::read_here(&mut reader, args)?;
             vals.push(val);
         }
         Ok(vals)
@@ -67,4 +72,20 @@ where <Self as Readable>::ReadableArgs: Copy {
 pub fn err<E, R>(error: E) -> Result<R> 
 where E: Into<Box<dyn error::Error + Send + Sync>> {
     Err(Error::new(ErrorKind::InvalidData, error))
+}
+
+impl Readable for u8 {
+    fn read_here<R: Read>(reader: R, _: &()) -> Result<Self> {
+        read_struct(reader)
+    }
+}
+impl Readable for u32 {
+    fn read_here<R: Read>(reader: R, _: &()) -> Result<Self> {
+        read_struct(reader)
+    }
+}
+impl Readable for u64 {
+    fn read_here<R: Read>(reader: R, _: &()) -> Result<Self> {
+        read_struct(reader)
+    }
 }

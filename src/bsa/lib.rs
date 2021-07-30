@@ -4,6 +4,7 @@ pub mod archive;
 pub mod bin;
 pub mod bzstring;
 pub mod version;
+pub mod v001;
 pub mod v10x;
 pub mod v103;
 pub mod v104;
