@@ -1,4 +1,5 @@
-#![feature(associated_type_defaults, wrapping_int_impl)]
+#![allow(incomplete_features)]
+#![feature(associated_type_defaults, wrapping_int_impl, specialization)]
 pub mod hash;
 pub mod archive;
 pub mod bin;

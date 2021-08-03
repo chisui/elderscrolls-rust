@@ -68,6 +68,11 @@ where <Self as Readable>::ReadableArgs: Copy {
         Ok(vals)
     }
 }
+default impl<T: Sized + fmt::Debug + Pod> Readable for T {
+    fn read_here<R: Read + Seek>(reader: R, _: &Self::ReadableArgs) -> Result<Self> {
+        read_struct(reader)
+    }
+}
 
 pub fn err<E, R>(error: E) -> Result<R> 
 where E: Into<Box<dyn error::Error + Send + Sync>> {

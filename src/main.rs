@@ -1,44 +1,52 @@
+#![feature(macro_attributes_in_derive_output)]
 use std::io::{BufReader, Result};
 use std::fs;
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use structopt::StructOpt;
 use glob::{Pattern, MatchOptions};
 
 use bsa;
+use bsa::version::Version;
 use bsa::SomeBsa;
 use bsa::archive::Bsa;
 
 
 #[derive(Debug, StructOpt)]
 #[structopt(about = "Bethesda Softworks Archive tool")]
-enum SubCmd {
-    Info(InfoCmd),
-    List(ListCmd),
-    Extract(ExtractCmd),
+enum Cmds {
+    Info(Info),
+    List(List),
+    Extract(Extract),
+    Create(Create),
 }
 trait Cmd {
-    fn exec(self) -> Result<()>;
+    fn exec(&self) -> Result<()>;
 }
-
-fn main() -> Result<()> {
-    let cmd = SubCmd::from_args();
-    match cmd {
-        SubCmd::Info(cmd)    => cmd.exec(),
-        SubCmd::List(cmd)    => cmd.exec(),
-        SubCmd::Extract(cmd) => cmd.exec(),
+impl Cmd for Cmds {
+    fn exec(&self) -> Result<()> {
+        match self {
+            Cmds::Info(cmd)    => cmd.exec(),
+            Cmds::List(cmd)    => cmd.exec(),
+            Cmds::Extract(cmd) => cmd.exec(),
+            Cmds::Create(cmd)  => cmd.exec(),   
+        }
     }
+}
+fn main() -> Result<()> {
+    Cmds::from_args().exec()
 }
 
 #[derive(Debug, StructOpt)]
 #[structopt()]
-struct InfoCmd {
+struct Info {
     #[structopt(parse(from_os_str))]
     file: PathBuf,
 }
-impl Cmd for InfoCmd {
-    fn exec(self) -> Result<()> {
-        let mut reader = open_read(self.file)?;
+impl Cmd for Info {
+    fn exec(&self) -> Result<()> {
+        let mut reader = File::open(&self.file)
+            .map(BufReader::new)?;
         let bsa = SomeBsa::open(&mut reader)?;
         println!("{}", bsa);
         Ok(())
@@ -47,16 +55,17 @@ impl Cmd for InfoCmd {
 
 #[derive(Debug, StructOpt)]
 #[structopt()]
-struct ListCmd {        
+struct List {        
     #[structopt(short, long)]
     attributes: bool,
 
     #[structopt(parse(from_os_str))]
     file: PathBuf,
 }
-impl Cmd for ListCmd {
-    fn exec(self) -> Result<()> {
-        let mut reader = open_read(self.file)?;
+impl Cmd for List {
+    fn exec(&self) -> Result<()> {
+        let mut reader = File::open(&self.file)
+            .map(BufReader::new)?;
 
         let bsa = SomeBsa::open(&mut reader)?;
         let dirs = bsa.read_dirs(&mut reader)?;
@@ -76,7 +85,7 @@ impl Cmd for ListCmd {
 
 #[derive(Debug, StructOpt)]
 #[structopt()]
-struct ExtractCmd {
+struct Extract {
     #[structopt(short, long, parse(from_os_str), default_value=".")]
     output: PathBuf,
     
@@ -97,9 +106,10 @@ fn should_extract(paths: &Vec<Pattern>, path: &String) -> bool {
             p.matches_with(&path, match_opt)
             || path.starts_with(p.as_str()))
 }
-impl Cmd for ExtractCmd {
-    fn exec(self) -> Result<()> {
-        let mut reader = open_read(self.file)?;
+impl Cmd for Extract {
+    fn exec(&self) -> Result<()> {
+        let mut reader = File::open(&self.file)
+            .map(BufReader::new)?;
 
         let bsa = SomeBsa::open(&mut reader)?;
         let dirs = bsa.read_dirs(&mut reader)?;
@@ -115,7 +125,7 @@ impl Cmd for ExtractCmd {
                     path_buf.push(format!("{}", dir.name));
                     fs::create_dir_all(&path_buf)?;
                     path_buf.push(format!("{}", file.name));
-                    let mut writer = open_write(path_buf.as_path())?;
+                    let mut writer = File::create(path_buf.as_path())?;
                     bsa.extract(file, &mut reader, &mut writer)?;
                 }
             }
@@ -125,11 +135,22 @@ impl Cmd for ExtractCmd {
     }
 }
 
-fn open_read(file: PathBuf) -> Result<BufReader<File>> {
-    let file = File::open(file)?;
-    Ok(BufReader::new(file))
-}
 
-fn open_write(file: &Path) -> Result<File> {
-    File::create(file)
+#[derive(Debug, StructOpt)]
+#[structopt()]
+struct Create {
+    #[structopt()]
+    version: Version,
+
+    #[structopt(short, long, parse(from_os_str))]
+    output: Option<PathBuf>,
+    
+    #[structopt(parse(from_os_str))]
+    file: PathBuf,
+}
+impl Cmd for Create {
+    fn exec(&self) -> Result<()> {
+        println!("{:?}", self);
+        Ok(())
+    }
 }

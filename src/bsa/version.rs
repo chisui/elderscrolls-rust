@@ -1,5 +1,5 @@
-use std::io::{Read, Seek, Result};
-use std::{error, fmt};
+use std::io::{Read, Seek, Result, Error};
+use std::{error, fmt, str};
 use bytemuck::{Pod, Zeroable};
 
 use super::bin::{self, err};
@@ -49,13 +49,15 @@ impl fmt::Display for Version {
 pub enum Unknown {
     Version(u8),
     MagicNumber(MagicNumber),
+    VersionString(String),
 }
 impl error::Error for Unknown {}
 impl fmt::Display for Unknown {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Unknown::Version(v)     => write!(f, "Unknown version {}", v),
-            Unknown::MagicNumber(n) => write!(f, "Unknown magic number {}", n),
+            Unknown::Version(v)       => write!(f, "Unknown version {}", v),
+            Unknown::VersionString(v) => write!(f, "Unknown version {}", v),
+            Unknown::MagicNumber(n)   => write!(f, "Unknown magic number {}", n),
         }
     }
 }
@@ -74,6 +76,19 @@ impl bin::Readable for Version {
                 }
             },
             nr => err(Unknown::MagicNumber(nr))
+        }
+    }
+}
+impl str::FromStr for Version {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "v100" | "tes3" | "morrowind" => Ok(Version::V100),
+            "v103" | "tes4" | "oblivion"  => Ok(Version::V103),
+            "v104" | "tes5" | "skyrim" | "f3" | "fallout3" | "fnv" | "newvegas" | "falloutnewvegas" => Ok(Version::V104),
+            "v105" | "tes5se" | "skyrimse" => Ok(Version::V105),
+            "v200" | "f4" | "fallout4" | "f76" | "fallout76" => Ok(Version::V200),
+            _ => err(Unknown::VersionString(String::from(s))),
         }
     }
 }

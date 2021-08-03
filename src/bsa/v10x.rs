@@ -105,8 +105,8 @@ impl<AF: ToArchiveBitFlags + fmt::Debug> bin::Readable for V10XHeader<AF> {
         Some(size_of::<MagicNumber>() + size_of::<Version>())
     }
     fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> Result<V10XHeader<AF>> {
-        let raw: RawHeader = bin::read_struct(&mut reader)?;
-        Ok(V10XHeader::<AF>::from(raw))
+        bin::read_struct::<RawHeader, _>(&mut reader)
+            .map(V10XHeader::<AF>::from)
     }
 }
 fn offset_after_header() -> usize {
