@@ -4,7 +4,7 @@ use bytemuck::{Zeroable, Pod};
 
 
 pub use super::bin::{read_struct, Readable};
-pub use super::version::Version;
+pub use super::version::{Version, Version10X};
 pub use super::hash::{hash_v10x, Hash};
 pub use super::v10x::{V10X, Versioned};
 pub use super::v10x;
@@ -37,7 +37,7 @@ impl From<RawDirRecord> for v10x::DirRecord {
 
 pub enum V105T{}
 impl Versioned for V105T {
-    fn version() -> Version { Version::V105 }
+    fn version() -> Version { Version::V10X(Version10X::V105) }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "BSA v105 file, format used by: TES V: Skyrim Special Edition")
     }

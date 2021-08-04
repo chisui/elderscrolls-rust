@@ -4,6 +4,7 @@ use std::hash;
 use bytemuck::{Zeroable, Pod};
 
 use super::bin;
+use super::bin::concat_bytes;
 
 
 #[repr(C)]
@@ -107,10 +108,6 @@ fn hash_sdbm(bytes: &[u8]) -> u32 {
 
 const fn rot_right(value: u32, num_bits: u32) -> u32 {
     value << (32 - num_bits) | value >> num_bits
-}
-
-const fn concat_bytes([a, b, c, d]: [u8; 4]) -> u32 {
-    (a as u32) | ((b as u32) << 8) | ((c as u32) << 16) | ((d as u32) << 24)
 }
 
 fn when<T: Default, F>(cond: bool, v: F) -> T 

@@ -1,9 +1,9 @@
-use std::io::{Read, Seek, SeekFrom, Result, Error};
-use std::str;
+use std::io::{Read, Write, Seek, SeekFrom, Result, Error};
+use std::str::{self, FromStr};
 use std::convert::TryFrom;
 use std::fmt;
 
-use super::bin::{err, read_struct, Readable};
+use super::bin::{err, read_struct, Readable, Writable, write_many};
 
 
 #[derive(Clone, PartialEq, Eq)]
@@ -24,11 +24,17 @@ impl TryFrom<Vec<u8>> for BZString {
     type Error = Error;
     fn try_from(chars: Vec<u8>) -> Result<BZString> {
         match str::from_utf8(&chars) {
-            Ok(s) => Ok(BZString {
-                value: s.to_owned()
-            }),
+            Ok(s) => BZString::from_str(s),
             Err(e) => err(e),
         }
+    }
+}
+impl FromStr for BZString {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        Ok(BZString {
+            value: s.to_owned()
+        })
     }
 }
 impl Readable for BZString {
@@ -54,6 +60,13 @@ impl From<&NullTerminated> for BZString {
         s.0.clone()
     }
 }
+impl FromStr for NullTerminated {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        let bzs = BZString::from_str(s)?;
+        Ok(NullTerminated(bzs))
+    }
+}
 impl Readable for NullTerminated {
     fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> Result<Self> {
         let mut chars: Vec<u8> = Vec::with_capacity(32);
@@ -66,5 +79,20 @@ impl Readable for NullTerminated {
         }
         let s = BZString::try_from(chars)?;
         Ok(NullTerminated(s))
+    }
+}
+impl Writable for NullTerminated {
+    fn size(&self) -> usize {
+        self.0.value.len() + 1
+    }
+    fn write_here<W: Write>(&self, mut writer: W) -> Result<()> {
+        write_many(self.0.value.bytes(), &mut writer)?;
+        (0 as u8).write_here(writer)
+    }
+}
+impl Writable for &NullTerminated {
+    fn size(&self) -> usize { (*self).size() }
+    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
+        (*self).write_here(writer)
     }
 }

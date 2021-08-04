@@ -1,13 +1,15 @@
-#![feature(macro_attributes_in_derive_output)]
 use std::io::{BufReader, Result};
-use std::fs;
-use std::fs::File;
-use std::path::PathBuf;
+use std::fs::{self, File};
+use std::str::FromStr;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 use glob::{Pattern, MatchOptions};
 
 use bsa;
-use bsa::version::Version;
+use bsa::bzstring::NullTerminated;
+use bsa::bin::{self, Writable};
+use bsa::version::{Version, Version10X};
+use bsa::v105;
 use bsa::SomeBsa;
 use bsa::archive::Bsa;
 
@@ -150,7 +152,64 @@ struct Create {
 }
 impl Cmd for Create {
     fn exec(&self) -> Result<()> {
-        println!("{:?}", self);
+        let output = match self.output.as_ref() {
+            Some(p) => p.clone(),
+            None => {
+                let mut tmp = (&self).file.clone();
+                tmp.set_extension("bsa");
+                tmp.to_owned()
+            },
+        };
+
+        if output.exists() {
+            println!("{} already exists", output.to_string_lossy());
+            return Ok(())
+        }
+
+        let mut writer = File::create(output)?;
+        Version::V10X(Version10X::V105).write_here(&mut writer)?;
+
+        let dirs = list_dir(&self.file)?;
+        for (dir, files) in &dirs {
+            println!("{} ->", dir.to_string_lossy());
+            for file in files {
+                println!("    {}", file.file_name().to_string_lossy());
+            }
+        }
+        let file_names: Vec<NullTerminated> = dirs.iter()
+            .flat_map(|(_, files)| files)
+            .map(|f| NullTerminated::from_str(&f.file_name().to_string_lossy()).unwrap())
+            .collect();
+        let mut header = v105::Header::default();
+        header.folder_count = dirs.len() as u32;
+        header.file_count = file_names.len() as u32;
+        header.total_file_name_length = bin::size_many(&file_names) as u32;
+        header.total_folder_name_length = dirs.iter()
+            .map(|(dir, _)| (dir.to_string_lossy().len() as u32) + 1)
+            .sum();
+        header.write_here(writer)?;
+        println!("{:#?}", header);
         Ok(())
     }
+}
+
+fn list_dir(dir: &Path) -> Result<Vec<(Box<Path>, Vec<fs::DirEntry>)>> {
+    let mut stack = vec![PathBuf::new()];
+    let mut res = vec![];
+    while let Some(path) = stack.pop() {
+        let mut files = vec![];
+        let pwd: PathBuf = [dir, &path].iter().collect();
+        for e in fs::read_dir(pwd)? {
+            let entry = e?;
+            if entry.file_type()?.is_dir() {
+                stack.push([&path, &PathBuf::from(entry.file_name())].iter().collect());
+            } else {
+                files.push(entry);
+            }
+        }
+        if !files.is_empty() {
+            res.push((path.into(), files));
+        }
+    }
+    Ok(res)
 }

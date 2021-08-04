@@ -1,4 +1,5 @@
-use std::io::{Read, Seek, SeekFrom, Result, Error, ErrorKind};
+use std::io::{Read, Write, Seek, SeekFrom, Result, Error, ErrorKind};
+use std::mem::size_of;
 use std::fmt;
 use std::error;
 use bytemuck::Pod;
@@ -9,6 +10,30 @@ pub fn read_struct<S: Pod, R: Read>(mut reader: R) -> Result<S> {
     let slice = bytemuck::bytes_of_mut(&mut val);
     reader.read_exact(slice)?;
     Ok(val)
+}
+
+#[derive(Debug)]
+struct CouldNotWrite {
+    pub expected: usize,
+    pub actual: usize,
+}
+impl error::Error for CouldNotWrite {}
+impl fmt::Display for CouldNotWrite {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Wanted to write {:?} bytes but could only write {:?}", self.expected, self.actual)
+    }
+}
+pub fn write_struct<S: Pod, W: Write>(val: &S, mut writer: W) -> Result<()> {
+    let bytes = bytemuck::bytes_of(val);
+    let actual = writer.write(bytes)?;
+    if actual != bytes.len() {
+        err(CouldNotWrite {
+            expected: bytes.len(),
+            actual,
+        })
+    } else {
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -93,4 +118,82 @@ impl Readable for u64 {
     fn read_here<R: Read>(reader: R, _: &()) -> Result<Self> {
         read_struct(reader)
     }
+}
+
+pub trait Writable {
+    fn size(&self) -> usize;
+
+    fn write_here<W: Write>(&self, writer: W) -> Result<()>;
+}
+
+impl Writable for u8 {
+    fn size(&self) -> usize { size_of::<Self>() }
+    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
+        write_struct(self, writer)
+    }
+}
+impl Writable for u16 {
+    fn size(&self) -> usize { size_of::<Self>() }
+    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
+        write_struct(self, writer)
+    }
+}
+impl Writable for u32 {
+    fn size(&self) -> usize { size_of::<Self>() }
+    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
+        write_struct(self, writer)
+    }
+}
+impl Writable for u64 {
+    fn size(&self) -> usize { size_of::<Self>() }
+    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
+        write_struct(self, writer)
+    }
+}
+impl Writable for &u8 {
+    fn size(&self) -> usize { size_of::<u8>() }
+    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
+        write_struct(*self, writer)
+    }
+}
+
+
+pub fn size_many<I: IntoIterator>(vals: I) -> usize
+where I::Item: Writable {
+    vals.into_iter().map(|val| val.size()).sum()
+}
+
+pub fn write_many<I: IntoIterator, W: Write>(vals: I, mut writer: W) -> Result<()>
+where I::Item: Writable {
+    for val in vals {
+        val.write_here(&mut writer)?;
+    }
+    Ok(())
+}
+
+
+impl<T: Writable> Writable for &[T] {
+    fn size(&self) -> usize { 
+        self.into_iter().map(|val| val.size()).sum()
+    }
+
+    fn write_here<W: Write>(&self, mut writer: W) -> Result<()> {
+        for val in self.into_iter() {
+            val.write_here(&mut writer)?;
+        }
+        Ok(())
+    }
+}
+impl<T: Writable, const N: usize> Writable for [T; N] {
+    fn size(&self) -> usize { 
+        (self as &[T]).size()
+    }
+
+    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
+        (self as &[T]).write_here(writer)
+    }
+}
+
+pub const fn concat_bytes([a, b, c, d]: [u8; 4]) -> u32 {
+    (a as u32) | ((b as u32) << 8) | ((c as u32) << 16) | ((d as u32) << 24)
 }

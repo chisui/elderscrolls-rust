@@ -1,5 +1,5 @@
 #![allow(incomplete_features)]
-#![feature(associated_type_defaults, wrapping_int_impl, specialization)]
+#![feature(associated_type_defaults, wrapping_int_impl, specialization, arbitrary_enum_discriminant)]
 pub mod hash;
 pub mod archive;
 pub mod bin;
@@ -15,7 +15,7 @@ use std::io::{Read, Seek, Write, Result};
 use std::{error, fmt};
 use archive::{Bsa, BsaDir, BsaFile};
 use bin::{err, Readable};
-use version::Version;
+use version::{Version, Version10X};
 
 
 #[derive(Debug)]
@@ -44,17 +44,19 @@ impl Bsa for SomeBsa {
     fn open<R: Read + Seek>(mut reader: R) -> Result<SomeBsa> {
         let version = Version::read(&mut reader, &())?;
         match version {
-            Version::V103 => {
-                let bsa = v103::V103::open(&mut reader)?;
-                Ok(SomeBsa::V103(bsa))
-            },
-            Version::V104 => {
-                let bsa = v104::V104::open(&mut reader)?;
-                Ok(SomeBsa::V104(bsa))
-            },
-            Version::V105 => {
-                let bsa = v105::V105::open(&mut reader)?;
-                Ok(SomeBsa::V105(bsa))
+            Version::V10X(v) => match v {
+                Version10X::V103 => {
+                    let bsa = v103::V103::open(&mut reader)?;
+                    Ok(SomeBsa::V103(bsa))
+                },
+                Version10X::V104 => {
+                    let bsa = v104::V104::open(&mut reader)?;
+                    Ok(SomeBsa::V104(bsa))
+                },
+                Version10X::V105 => {
+                    let bsa = v105::V105::open(&mut reader)?;
+                    Ok(SomeBsa::V105(bsa))
+                },
             },
             v => err(UnsupportedVersion(v)),
         }

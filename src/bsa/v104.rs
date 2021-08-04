@@ -3,7 +3,7 @@ use std::str;
 use std::fmt;
 use enumflags2::{bitflags, BitFlags};
 
-use super::version::Version;
+use super::version::{Version, Version10X};
 use super::v10x::{V10X, V10XHeader, DirRecord, ToArchiveBitFlags, Versioned};
 use super::v103;
 pub use super::v103::BZString;
@@ -43,6 +43,9 @@ impl ToArchiveBitFlags for ArchiveFlag {
     fn to_archive_bit_flags(bits: u32) -> BitFlags<Self> {
         BitFlags::from_bits_truncate(bits)
     }
+    fn from_archive_bit_flags(flags: BitFlags<Self>) -> u32 { 
+        flags.bits()
+    }
 
     fn is_compressed_by_default() -> Self { ArchiveFlag::CompressedArchive }
     fn includes_file_names() -> Self { ArchiveFlag::IncludeFileNames }
@@ -52,7 +55,7 @@ impl ToArchiveBitFlags for ArchiveFlag {
 pub type Header = V10XHeader<ArchiveFlag>;
 pub enum V104T{}
 impl Versioned for V104T {
-    fn version() -> Version { Version::V104 }
+    fn version() -> Version { Version::V10X(Version10X::V104) }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "BSA v104 file, format used by: TES V: Skyrim, Fallout 3 and Fallout: New Vegas")
     }

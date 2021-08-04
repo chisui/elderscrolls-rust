@@ -4,7 +4,7 @@ use std::fmt;
 use enumflags2::{bitflags, BitFlags};
 use libflate::zlib;
 
-use super::version::Version;
+use super::version::{Version, Version10X};
 use super::v10x::{V10X, ToArchiveBitFlags, Versioned, DirRecord};
 pub use super::v10x::V10XHeader;
 pub use super::bzstring::BZString;
@@ -38,6 +38,10 @@ impl ToArchiveBitFlags for ArchiveFlag {
     fn to_archive_bit_flags(bits: u32) -> BitFlags<Self> {
         BitFlags::from_bits_truncate(bits)
     }
+    fn from_archive_bit_flags(flags: BitFlags<Self>) -> u32 { 
+        flags.bits()
+    }
+    
 
     fn is_compressed_by_default() -> Self { ArchiveFlag::CompressedArchive }
     fn includes_file_names() -> Self { ArchiveFlag::IncludeFileNames }
@@ -48,7 +52,7 @@ pub type Header = V10XHeader<ArchiveFlag>;
 pub enum V103T {}
 pub type V103 = V10X<V103T, ArchiveFlag, DirRecord>;
 impl Versioned for V103T {
-    fn version() -> Version { Version::V103 }
+    fn version() -> Version { Version::V10X(Version10X::V103) }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "BSA v103 file, format used by: TES IV: Oblivion")
     }

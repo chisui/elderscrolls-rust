@@ -16,6 +16,7 @@ pub use super::bzstring::{BZString, NullTerminated};
 
 pub trait ToArchiveBitFlags: BitFlag + fmt::Debug {
     fn to_archive_bit_flags(bits: u32) -> BitFlags<Self>;
+    fn from_archive_bit_flags(flags: BitFlags<Self>) -> u32;
 
     fn is_compressed_by_default() -> Self;
     
@@ -63,6 +64,13 @@ pub struct V10XHeader<AF: BitFlag> {
     pub file_flags: BitFlags<FileFlag>,
     pub padding: u16,
 }
+impl<AF: ToArchiveBitFlags> Default for V10XHeader<AF> {
+    fn default() -> Self {
+        let mut h: Self = RawHeader::zeroed().into();
+        h.offset = (size_of::<MagicNumber>() + size_of::<u32>() + size_of::<RawHeader>()) as u32;
+        h
+    }
+}
 impl<AF: ToArchiveBitFlags> From<RawHeader> for V10XHeader<AF> {
     fn from(raw: RawHeader) -> V10XHeader<AF> {
         let RawHeader {
@@ -87,6 +95,30 @@ impl<AF: ToArchiveBitFlags> From<RawHeader> for V10XHeader<AF> {
         }   
     }
 }
+impl<AF: ToArchiveBitFlags> From<V10XHeader<AF>> for RawHeader {
+    fn from(h: V10XHeader<AF>) -> Self {
+        let V10XHeader {
+            offset,
+            archive_flags,
+            folder_count,
+            file_count,
+            total_folder_name_length,
+            total_file_name_length,
+            file_flags,
+            padding,
+        } = h;
+        Self {
+            offset,
+            archive_flags: ToArchiveBitFlags::from_archive_bit_flags(archive_flags),
+            folder_count,
+            file_count,
+            total_folder_name_length,
+            total_file_name_length,
+            file_flags: file_flags.bits(),
+            padding,
+        }
+    }
+}
 pub trait Has<T> {
     fn has(&self, t: T) -> bool;
 }
@@ -109,6 +141,14 @@ impl<AF: ToArchiveBitFlags + fmt::Debug> bin::Readable for V10XHeader<AF> {
             .map(V10XHeader::<AF>::from)
     }
 }
+impl<AF: ToArchiveBitFlags> bin::Writable for V10XHeader<AF> {
+    fn size(&self) -> usize { size_of::<RawHeader>() }
+    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
+        let raw: RawHeader = (*self).into();
+        bin::write_struct(&raw, writer)
+    }
+}
+
 fn offset_after_header() -> usize {
     size_of::<MagicNumber>() + size_of::<Version>() + size_of::<RawHeader>()
 }

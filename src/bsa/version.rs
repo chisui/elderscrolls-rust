@@ -1,5 +1,5 @@
-use std::io::{Read, Seek, Result, Error};
-use std::{error, fmt, str};
+use std::io::{Read, Write, Seek, Result, Error};
+use std::{error, fmt, str, mem};
 use bytemuck::{Pod, Zeroable};
 
 use super::bin::{self, err};
@@ -12,9 +12,16 @@ pub struct MagicNumber {
 }
 const MGNR_V100: MagicNumber = MagicNumber{ value: [0,0,1,0] };
 const MGNR_V10X: MagicNumber = MagicNumber{ value: *b"BSA\0" };
+const MGNR_BTDX: MagicNumber = MagicNumber{ value: *b"BTDX" };
 impl bin::Readable for MagicNumber {
     fn read_here<R: Read + Seek>(reader: R, _: &()) -> Result<MagicNumber> {
         bin::read_struct(reader)
+    }
+}
+impl bin::Writable for MagicNumber {
+    fn size(&self) -> usize { mem::size_of::<Self>() }
+    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
+        (&self.value as &[u8]).write_here(writer)
     }
 }
 impl fmt::Display for MagicNumber {
@@ -24,25 +31,28 @@ impl fmt::Display for MagicNumber {
     }
 }
 
-
-#[repr(u32)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Version {
     V100, // TES3
-    V103, // TES4
-    V104, // F3, FNV, TES5
-    V105, // TES5se
-    V200, // F4 F76
+    V10X(Version10X),
+    V200(u32), // F4 F76
+}
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Version10X {
+    V103 = 103, // TES4
+    V104 = 104, // F3, FNV, TES5
+    V105 = 105, // TES5se
 }
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            Version::V100 => "v100",
-            Version::V103 => "v103",
-            Version::V104 => "v104",
-            Version::V105 => "v105",
-            Version::V200 => "v200",
-        })
+        match self {
+            Version::V100 => write!(f, "v100"),
+            Version::V10X(Version10X::V103) => write!(f, "v103"),
+            Version::V10X(Version10X::V104) => write!(f, "v104"),
+            Version::V10X(Version10X::V105) => write!(f, "v105"),
+            Version::V200(v) => write!(f, "BA2 v{:03}", v),
+        }
     }
 }
 #[derive(Debug)]
@@ -61,6 +71,28 @@ impl fmt::Display for Unknown {
         }
     }
 }
+
+impl bin::Writable for Version {
+    fn size(&self) -> usize { 
+        match self {
+            Version::V100 => mem::size_of::<MagicNumber>(),
+            _ => mem::size_of::<MagicNumber>() + mem::size_of::<u32>(),
+        }
+     }
+    fn write_here<W: Write>(&self, mut writer: W) -> Result<()> {
+        match self {
+            Version::V100 => MGNR_V100.write_here(writer),
+            Version::V200(v) => {
+                MGNR_BTDX.write_here(&mut writer)?;
+                v.write_here(writer)
+            }
+            Version::V10X(v) => {
+                MGNR_V10X.write_here(&mut writer)?;
+                (*v as u32).write_here(writer)
+            }
+        }
+    }
+}
 impl bin::Readable for Version {
     fn read_here<R: Read + Seek>(mut buffer: R, _: &()) -> Result<Self> {
         let mg_nr = MagicNumber::read(&mut buffer, &())?;
@@ -69,11 +101,11 @@ impl bin::Readable for Version {
             MGNR_V10X => {
                 let version: u8 = bin::read_struct(&mut buffer)?;
                 match version {
-                    103 => Ok(Version::V103),
-                    104 => Ok(Version::V104),
-                    105 => Ok(Version::V105),
+                    103 => Ok(Version10X::V103),
+                    104 => Ok(Version10X::V104),
+                    105 => Ok(Version10X::V105),
                     _   => err(Unknown::Version(version)),
-                }
+                }.map(Version::V10X)
             },
             nr => err(Unknown::MagicNumber(nr))
         }
@@ -84,10 +116,10 @@ impl str::FromStr for Version {
     fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "v100" | "tes3" | "morrowind" => Ok(Version::V100),
-            "v103" | "tes4" | "oblivion"  => Ok(Version::V103),
-            "v104" | "tes5" | "skyrim" | "f3" | "fallout3" | "fnv" | "newvegas" | "falloutnewvegas" => Ok(Version::V104),
-            "v105" | "tes5se" | "skyrimse" => Ok(Version::V105),
-            "v200" | "f4" | "fallout4" | "f76" | "fallout76" => Ok(Version::V200),
+            "v103" | "tes4" | "oblivion"  => Ok(Version::V10X(Version10X::V103)),
+            "v104" | "tes5" | "skyrim" | "f3" | "fallout3" | "fnv" | "newvegas" | "falloutnewvegas" => Ok(Version::V10X(Version10X::V104)),
+            "v105" | "tes5se" | "skyrimse" => Ok(Version::V10X(Version10X::V105)),
+            "v200" | "f4" | "fallout4" | "f76" | "fallout76" => Ok(Version::V200(1)),
             _ => err(Unknown::VersionString(String::from(s))),
         }
     }
