@@ -1,9 +1,7 @@
-use std::io::{Read, Write, Seek, SeekFrom, Result, Error, ErrorKind};
+use std::io::{Read, Write, Seek, SeekFrom, Result};
 use std::mem::size_of;
 use std::fmt;
-use std::error;
 use bytemuck::Pod;
-
 
 pub fn read_struct<S: Pod, R: Read>(mut reader: R) -> Result<S> {
     let mut val = S::zeroed();
@@ -12,38 +10,11 @@ pub fn read_struct<S: Pod, R: Read>(mut reader: R) -> Result<S> {
     Ok(val)
 }
 
-#[derive(Debug)]
-struct CouldNotWrite {
-    pub expected: usize,
-    pub actual: usize,
-}
-impl error::Error for CouldNotWrite {}
-impl fmt::Display for CouldNotWrite {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Wanted to write {:?} bytes but could only write {:?}", self.expected, self.actual)
-    }
-}
 pub fn write_struct<S: Pod, W: Write>(val: &S, mut writer: W) -> Result<()> {
     let bytes = bytemuck::bytes_of(val);
-    let actual = writer.write(bytes)?;
-    if actual != bytes.len() {
-        err(CouldNotWrite {
-            expected: bytes.len(),
-            actual,
-        })
-    } else {
-        Ok(())
-    }
+    writer.write_all(bytes)
 }
 
-#[derive(Debug)]
-struct PositionedError(pub Error, pub u64);
-impl error::Error for PositionedError {}
-impl fmt::Display for PositionedError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} at: {:08}", self.0, self.1)
-    }
-}
 
 pub trait Readable: Sized + fmt::Debug
 where <Self as Readable>::ReadableArgs: Copy {
@@ -64,17 +35,10 @@ where <Self as Readable>::ReadableArgs: Copy {
     }
 
     fn read<R: Read + Seek>(mut reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self> {
-        match Self::offset(args) {
-            Some(i) => reader.seek(SeekFrom::Start(i as u64))?,
-            _ => 0,
-        };
-        match Self::read_here(&mut reader, args) {
-            Ok(v) => Ok(v),
-            Err(e) => {
-                let pos = reader.stream_position()?;
-                err(PositionedError(e, pos))
-            },
-        }        
+        if let Some(i) = Self::offset(args) {
+            reader.seek(SeekFrom::Start(i as u64))?;
+        }
+        Self::read_here(&mut reader, args)
     }
 
     fn read_here<R: Read + Seek>(reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self>;
@@ -103,24 +67,23 @@ default impl<T: Sized + fmt::Debug + Pod> Readable for T {
         read_struct(reader)
     }
 }
-
-pub fn err<E, R>(error: E) -> Result<R> 
-where E: Into<Box<dyn error::Error + Send + Sync>> {
-    Err(Error::new(ErrorKind::InvalidData, error))
-}
-
 impl Readable for u8 {
-    fn read_here<R: Read>(reader: R, _: &()) -> Result<Self> {
+    fn read_here<R: Read + Seek>(reader: R, _: &Self::ReadableArgs) -> Result<Self> {
+        read_struct(reader)
+    }
+}
+impl Readable for u16 {
+    fn read_here<R: Read + Seek>(reader: R, _: &Self::ReadableArgs) -> Result<Self> {
         read_struct(reader)
     }
 }
 impl Readable for u32 {
-    fn read_here<R: Read>(reader: R, _: &()) -> Result<Self> {
+    fn read_here<R: Read + Seek>(reader: R, _: &Self::ReadableArgs) -> Result<Self> {
         read_struct(reader)
     }
 }
 impl Readable for u64 {
-    fn read_here<R: Read>(reader: R, _: &()) -> Result<Self> {
+    fn read_here<R: Read + Seek>(reader: R, _: &Self::ReadableArgs) -> Result<Self> {
         read_struct(reader)
     }
 }
@@ -130,7 +93,12 @@ pub trait Writable {
 
     fn write_here<W: Write>(&self, writer: W) -> Result<()>;
 }
-
+default impl<T: Sized + fmt::Debug + Pod> Writable for T {
+    fn size(&self) -> usize { size_of::<Self>() }
+    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
+        write_struct(self, writer)
+    }
+}
 impl Writable for u8 {
     fn size(&self) -> usize { size_of::<Self>() }
     fn write_here<W: Write>(&self, writer: W) -> Result<()> {
@@ -155,13 +123,6 @@ impl Writable for u64 {
         write_struct(self, writer)
     }
 }
-impl Writable for &u8 {
-    fn size(&self) -> usize { size_of::<u8>() }
-    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        write_struct(*self, writer)
-    }
-}
-
 
 pub fn size_many<I: IntoIterator>(vals: I) -> usize
 where I::Item: Writable {
@@ -174,29 +135,6 @@ where I::Item: Writable {
         val.write_here(&mut writer)?;
     }
     Ok(())
-}
-
-
-impl<T: Writable> Writable for &[T] {
-    fn size(&self) -> usize { 
-        self.into_iter().map(|val| val.size()).sum()
-    }
-
-    fn write_here<W: Write>(&self, mut writer: W) -> Result<()> {
-        for val in self.into_iter() {
-            val.write_here(&mut writer)?;
-        }
-        Ok(())
-    }
-}
-impl<T: Writable, const N: usize> Writable for [T; N] {
-    fn size(&self) -> usize { 
-        (self as &[T]).size()
-    }
-
-    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        (self as &[T]).write_here(writer)
-    }
 }
 
 pub const fn concat_bytes([a, b, c, d]: [u8; 4]) -> u32 {

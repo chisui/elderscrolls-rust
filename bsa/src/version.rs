@@ -1,10 +1,21 @@
-use std::{error, fmt, str};
-use std::io::{Read, Write, Seek, Result, Error};
+use std::{fmt, str};
+use std::io::{self, Read, Write, Seek, Result};
 use std::convert::TryFrom;
 use std::mem::size_of;
 
-use super::bin::{self, err};
+use thiserror::Error;
 
+use super::bin;
+
+#[derive(Debug, Error)]
+pub enum Unknown {
+    #[error("Unknown version {0}")]
+    Version(u8),
+    #[error("Unknown version {0}")]
+    MagicNumber(u32),
+    #[error("Unknown magic number {0}")]
+    VersionString(String),
+}
 
 #[repr(u32)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -19,12 +30,12 @@ impl From<MagicNumber> for u32 {
     }
 }
 impl TryFrom<u32> for MagicNumber {
-    type Error = Error;
+    type Error = io::Error;
     fn try_from(i: u32) -> Result<Self> {
         if i == MagicNumber::V100 as u32 { Ok(MagicNumber::V100) }
         else if i == MagicNumber::V10X as u32 { Ok(MagicNumber::V10X) }
         else if i == MagicNumber::BTDX as u32 { Ok(MagicNumber::BTDX) }
-        else { err(Unknown::MagicNumber(i)) }
+        else { Err(io::Error::new(io::ErrorKind::InvalidData, Unknown::MagicNumber(i))) }
     }
 }
 impl bin::Readable for MagicNumber {
@@ -70,22 +81,6 @@ impl fmt::Display for Version {
         }
     }
 }
-#[derive(Debug)]
-pub enum Unknown {
-    Version(u8),
-    MagicNumber(u32),
-    VersionString(String),
-}
-impl error::Error for Unknown {}
-impl fmt::Display for Unknown {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Unknown::Version(v)       => write!(f, "Unknown version {}", v),
-            Unknown::VersionString(v) => write!(f, "Unknown version {}", v),
-            Unknown::MagicNumber(n)   => write!(f, "Unknown magic number {}", n),
-        }
-    }
-}
 
 impl bin::Writable for Version {
     fn size(&self) -> usize { 
@@ -120,7 +115,7 @@ impl bin::Readable for Version {
                     103 => Ok(Version10X::V103),
                     104 => Ok(Version10X::V104),
                     105 => Ok(Version10X::V105),
-                    _   => err(Unknown::Version(version)),
+                    _ => Err(io::Error::new(io::ErrorKind::InvalidData, Unknown::Version(version))),
                 }.map(Version::V10X)
             },
             MagicNumber::BTDX => {
@@ -131,7 +126,7 @@ impl bin::Readable for Version {
     }
 }
 impl str::FromStr for Version {
-    type Err = Error;
+    type Err = io::Error;
     fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "v100" | "tes3" | "morrowind" => Ok(Version::V100),
@@ -139,7 +134,7 @@ impl str::FromStr for Version {
             "v104" | "tes5" | "skyrim" | "f3" | "fallout3" | "fnv" | "newvegas" | "falloutnewvegas" => Ok(Version::V10X(Version10X::V104)),
             "v105" | "tes5se" | "skyrimse" => Ok(Version::V10X(Version10X::V105)),
             "v200" | "f4" | "fallout4" | "f76" | "fallout76" => Ok(Version::V200(1)),
-            _ => err(Unknown::VersionString(String::from(s))),
+            _ => Err(io::Error::new(io::ErrorKind::InvalidData, Unknown::VersionString(String::from(s)))),
         }
     }
 }

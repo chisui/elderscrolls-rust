@@ -13,15 +13,14 @@ use bsa::v105;
 use bsa::SomeBsa;
 use bsa::archive::Bsa;
 
+mod cli;
+use crate::cli::{Cmds, Info, List, Extract, Create};
 
-#[derive(Debug, Clap)]
-#[clap(about = "Bethesda Softworks Archive tool")]
-enum Cmds {
-    Info(Info),
-    List(List),
-    Extract(Extract),
-    Create(Create),
+
+fn main() -> Result<()> {
+    Cmds::parse().exec()
 }
+
 trait Cmd {
     fn exec(&self) -> Result<()>;
 }
@@ -35,16 +34,7 @@ impl Cmd for Cmds {
         }
     }
 }
-fn main() -> Result<()> {
-    Cmds::parse().exec()
-}
 
-#[derive(Debug, Clap)]
-#[clap()]
-struct Info {
-    #[clap(parse(from_os_str))]
-    file: PathBuf,
-}
 impl Cmd for Info {
     fn exec(&self) -> Result<()> {
         let mut reader = File::open(&self.file)
@@ -55,15 +45,6 @@ impl Cmd for Info {
     }
 }
 
-#[derive(Debug, Clap)]
-#[clap()]
-struct List {        
-    #[clap(short, long)]
-    attributes: bool,
-
-    #[clap(parse(from_os_str))]
-    file: PathBuf,
-}
 impl Cmd for List {
     fn exec(&self) -> Result<()> {
         let mut reader = File::open(&self.file)
@@ -85,18 +66,6 @@ impl Cmd for List {
     }
 }
 
-#[derive(Debug, Clap)]
-#[clap()]
-struct Extract {
-    #[clap(short, long, parse(from_os_str), default_value=".")]
-    output: PathBuf,
-    
-    #[clap(parse(from_os_str))]
-    file: PathBuf,
-    
-    #[clap(parse(try_from_str))]
-    paths: Vec<Pattern>,
-}
 fn should_extract(paths: &Vec<Pattern>, path: &String) -> bool {
     let match_opt = MatchOptions {
         case_sensitive: false,
@@ -138,18 +107,6 @@ impl Cmd for Extract {
 }
 
 
-#[derive(Debug, Clap)]
-#[clap()]
-struct Create {
-    #[clap()]
-    version: Version,
-
-    #[clap(short, long, parse(from_os_str))]
-    output: Option<PathBuf>,
-    
-    #[clap(parse(from_os_str))]
-    file: PathBuf,
-}
 impl Cmd for Create {
     fn exec(&self) -> Result<()> {
         let output = match self.output.as_ref() {

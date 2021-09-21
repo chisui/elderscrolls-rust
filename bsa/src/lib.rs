@@ -11,21 +11,19 @@ pub mod v103;
 pub mod v104;
 pub mod v105;
 
-use std::io::{Read, Seek, Write, Result};
-use std::{error, fmt};
+use std::io::{Read, Seek, Write, Result, Error, ErrorKind};
+use std::fmt;
+use thiserror::Error;
 use archive::{Bsa, BsaDir, BsaFile};
-use bin::{err, Readable};
+use bin::Readable;
 use version::{Version, Version10X};
 
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Unsupported Version {0}")]
 struct UnsupportedVersion(pub Version);
-impl error::Error for UnsupportedVersion {}
-impl fmt::Display for UnsupportedVersion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Unsupported Version {}", self.0)
-    }
-}
+
+
 pub enum SomeBsa {
     V103(v103::V103),
     V104(v104::V104),
@@ -58,7 +56,7 @@ impl Bsa for SomeBsa {
                     Ok(SomeBsa::V105(bsa))
                 },
             },
-            v => err(UnsupportedVersion(v)),
+            v => Err(Error::new(ErrorKind::InvalidData, UnsupportedVersion(v))),
         }
     }
 

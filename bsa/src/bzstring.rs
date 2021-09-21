@@ -1,9 +1,9 @@
-use std::io::{Read, Write, Seek, SeekFrom, Result, Error};
+use std::io::{Read, Write, Seek, SeekFrom, Result, Error, ErrorKind};
 use std::str::{self, FromStr};
 use std::convert::TryFrom;
 use std::fmt;
 
-use super::bin::{err, read_struct, Readable, Writable, write_many};
+use super::bin::{read_struct, Readable, Writable, write_many};
 
 
 #[derive(Clone, PartialEq, Eq)]
@@ -25,7 +25,7 @@ impl TryFrom<Vec<u8>> for BZString {
     fn try_from(chars: Vec<u8>) -> Result<BZString> {
         match str::from_utf8(&chars) {
             Ok(s) => BZString::from_str(s),
-            Err(e) => err(e),
+            Err(e) => Err(Error::new(ErrorKind::InvalidData, e)),
         }
     }
 }
