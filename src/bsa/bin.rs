@@ -79,6 +79,11 @@ where <Self as Readable>::ReadableArgs: Copy {
 
     fn read_here<R: Read + Seek>(reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self>;
     
+    fn read_here0<R: Read + Seek>(reader: R) -> Result<Self>
+    where Self::ReadableArgs: Default {
+        Self::read_here(reader, &Self::ReadableArgs::default())
+    }
+
     fn read_many0<R: Read + Seek>(reader: R, num: usize) -> Result<Vec<Self>>
     where Self::ReadableArgs: Default {
         Self::read_many(reader, num, &Self::ReadableArgs::default())

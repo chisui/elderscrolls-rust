@@ -1,33 +1,48 @@
+use std::{error, fmt, str};
 use std::io::{Read, Write, Seek, Result, Error};
-use std::{error, fmt, str, mem};
-use bytemuck::{Pod, Zeroable};
+use std::convert::TryFrom;
+use std::mem::size_of;
 
 use super::bin::{self, err};
 
 
-#[repr(C)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Zeroable, Pod)]
-pub struct MagicNumber {
-    pub value: [u8; 4],
+#[repr(u32)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum MagicNumber {
+    V100 = bin::concat_bytes([0,0,1,0]),
+    V10X = bin::concat_bytes(*b"BSA\0"),
+    BTDX = bin::concat_bytes(*b"BTDX"),
 }
-const MGNR_V100: MagicNumber = MagicNumber{ value: [0,0,1,0] };
-const MGNR_V10X: MagicNumber = MagicNumber{ value: *b"BSA\0" };
-const MGNR_BTDX: MagicNumber = MagicNumber{ value: *b"BTDX" };
+impl From<MagicNumber> for u32 {
+    fn from(nr: MagicNumber) -> u32 {
+        nr as u32
+    }
+}
+impl TryFrom<u32> for MagicNumber {
+    type Error = Error;
+    fn try_from(i: u32) -> Result<Self> {
+        if i == MagicNumber::V100 as u32 { Ok(MagicNumber::V100) }
+        else if i == MagicNumber::V10X as u32 { Ok(MagicNumber::V10X) }
+        else if i == MagicNumber::BTDX as u32 { Ok(MagicNumber::BTDX) }
+        else { err(Unknown::MagicNumber(i)) }
+    }
+}
 impl bin::Readable for MagicNumber {
+    fn offset(_: &()) -> Option<usize> { Some(0) }
     fn read_here<R: Read + Seek>(reader: R, _: &()) -> Result<MagicNumber> {
-        bin::read_struct(reader)
+        u32::read_here0(reader)
+            .and_then(MagicNumber::try_from)
     }
 }
 impl bin::Writable for MagicNumber {
-    fn size(&self) -> usize { mem::size_of::<Self>() }
+    fn size(&self) -> usize { size_of::<Self>() }
     fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        (&self.value as &[u8]).write_here(writer)
+        (*self as u32).write_here(writer)
     }
 }
 impl fmt::Display for MagicNumber {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let MagicNumber{ value: [a, b, c, d] } = self;
-        write!(f, "{:x}{:x}{:x}{:x}", a, b, c, d)
+        write!(f, "{:x}", *self as u32)
     }
 }
 
@@ -58,7 +73,7 @@ impl fmt::Display for Version {
 #[derive(Debug)]
 pub enum Unknown {
     Version(u8),
-    MagicNumber(MagicNumber),
+    MagicNumber(u32),
     VersionString(String),
 }
 impl error::Error for Unknown {}
@@ -74,20 +89,21 @@ impl fmt::Display for Unknown {
 
 impl bin::Writable for Version {
     fn size(&self) -> usize { 
-        match self {
-            Version::V100 => mem::size_of::<MagicNumber>(),
-            _ => mem::size_of::<MagicNumber>() + mem::size_of::<u32>(),
+        size_of::<MagicNumber>() + match self {
+            Version::V100 => 0,
+            Version::V10X(_) => size_of::<Version10X>(),
+            Version::V200(_) => size_of::<u32>(),
         }
      }
     fn write_here<W: Write>(&self, mut writer: W) -> Result<()> {
         match self {
-            Version::V100 => MGNR_V100.write_here(writer),
+            Version::V100 => MagicNumber::V100.write_here(writer),
             Version::V200(v) => {
-                MGNR_BTDX.write_here(&mut writer)?;
+                MagicNumber::BTDX.write_here(&mut writer)?;
                 v.write_here(writer)
             }
             Version::V10X(v) => {
-                MGNR_V10X.write_here(&mut writer)?;
+                MagicNumber::V10X.write_here(&mut writer)?;
                 (*v as u32).write_here(writer)
             }
         }
@@ -97,8 +113,8 @@ impl bin::Readable for Version {
     fn read_here<R: Read + Seek>(mut buffer: R, _: &()) -> Result<Self> {
         let mg_nr = MagicNumber::read(&mut buffer, &())?;
         match mg_nr {
-            MGNR_V100 => Ok(Version::V100),
-            MGNR_V10X => {
+            MagicNumber::V100 => Ok(Version::V100),
+            MagicNumber::V10X => {
                 let version: u8 = bin::read_struct(&mut buffer)?;
                 match version {
                     103 => Ok(Version10X::V103),
@@ -107,7 +123,10 @@ impl bin::Readable for Version {
                     _   => err(Unknown::Version(version)),
                 }.map(Version::V10X)
             },
-            nr => err(Unknown::MagicNumber(nr))
+            MagicNumber::BTDX => {
+                let v = u32::read_here0(&mut buffer)?;
+                Ok(Version::V200(v))
+            }
         }
     }
 }
