@@ -2,7 +2,7 @@ use std::io::{BufReader, Result};
 use std::fs::{self, File};
 use std::str::FromStr;
 use std::path::{Path, PathBuf};
-use structopt::StructOpt;
+use clap::Clap;
 use glob::{Pattern, MatchOptions};
 
 use bsa;
@@ -14,8 +14,8 @@ use bsa::SomeBsa;
 use bsa::archive::Bsa;
 
 
-#[derive(Debug, StructOpt)]
-#[structopt(about = "Bethesda Softworks Archive tool")]
+#[derive(Debug, Clap)]
+#[clap(about = "Bethesda Softworks Archive tool")]
 enum Cmds {
     Info(Info),
     List(List),
@@ -36,13 +36,13 @@ impl Cmd for Cmds {
     }
 }
 fn main() -> Result<()> {
-    Cmds::from_args().exec()
+    Cmds::parse().exec()
 }
 
-#[derive(Debug, StructOpt)]
-#[structopt()]
+#[derive(Debug, Clap)]
+#[clap()]
 struct Info {
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     file: PathBuf,
 }
 impl Cmd for Info {
@@ -55,13 +55,13 @@ impl Cmd for Info {
     }
 }
 
-#[derive(Debug, StructOpt)]
-#[structopt()]
+#[derive(Debug, Clap)]
+#[clap()]
 struct List {        
-    #[structopt(short, long)]
+    #[clap(short, long)]
     attributes: bool,
 
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     file: PathBuf,
 }
 impl Cmd for List {
@@ -85,16 +85,16 @@ impl Cmd for List {
     }
 }
 
-#[derive(Debug, StructOpt)]
-#[structopt()]
+#[derive(Debug, Clap)]
+#[clap()]
 struct Extract {
-    #[structopt(short, long, parse(from_os_str), default_value=".")]
+    #[clap(short, long, parse(from_os_str), default_value=".")]
     output: PathBuf,
     
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     file: PathBuf,
     
-    #[structopt(parse(try_from_str))]
+    #[clap(parse(try_from_str))]
     paths: Vec<Pattern>,
 }
 fn should_extract(paths: &Vec<Pattern>, path: &String) -> bool {
@@ -138,16 +138,16 @@ impl Cmd for Extract {
 }
 
 
-#[derive(Debug, StructOpt)]
-#[structopt()]
+#[derive(Debug, Clap)]
+#[clap()]
 struct Create {
-    #[structopt()]
+    #[clap()]
     version: Version,
 
-    #[structopt(short, long, parse(from_os_str))]
+    #[clap(short, long, parse(from_os_str))]
     output: Option<PathBuf>,
     
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     file: PathBuf,
 }
 impl Cmd for Create {
