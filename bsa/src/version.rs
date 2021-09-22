@@ -1,11 +1,11 @@
 use std::{fmt, str};
 use std::io::{self, Read, Write, Seek, Result};
-use std::convert::TryFrom;
 use std::mem::size_of;
 
 use thiserror::Error;
 
 use super::bin;
+use super::magicnumber::MagicNumber;
 
 #[derive(Debug, Error)]
 pub enum Unknown {
@@ -15,46 +15,6 @@ pub enum Unknown {
     MagicNumber(u32),
     #[error("Unknown magic number {0}")]
     VersionString(String),
-}
-
-#[repr(u32)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum MagicNumber {
-    V100 = bin::concat_bytes([0,0,1,0]),
-    V10X = bin::concat_bytes(*b"BSA\0"),
-    BTDX = bin::concat_bytes(*b"BTDX"),
-}
-impl From<MagicNumber> for u32 {
-    fn from(nr: MagicNumber) -> u32 {
-        nr as u32
-    }
-}
-impl TryFrom<u32> for MagicNumber {
-    type Error = io::Error;
-    fn try_from(i: u32) -> Result<Self> {
-        if i == MagicNumber::V100 as u32 { Ok(MagicNumber::V100) }
-        else if i == MagicNumber::V10X as u32 { Ok(MagicNumber::V10X) }
-        else if i == MagicNumber::BTDX as u32 { Ok(MagicNumber::BTDX) }
-        else { Err(io::Error::new(io::ErrorKind::InvalidData, Unknown::MagicNumber(i))) }
-    }
-}
-impl bin::Readable for MagicNumber {
-    fn offset(_: &()) -> Option<usize> { Some(0) }
-    fn read_here<R: Read + Seek>(reader: R, _: &()) -> Result<MagicNumber> {
-        u32::read_here0(reader)
-            .and_then(MagicNumber::try_from)
-    }
-}
-impl bin::Writable for MagicNumber {
-    fn size(&self) -> usize { size_of::<Self>() }
-    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        (*self as u32).write_here(writer)
-    }
-}
-impl fmt::Display for MagicNumber {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:x}", *self as u32)
-    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

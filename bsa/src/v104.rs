@@ -4,7 +4,7 @@ use std::fmt;
 use enumflags2::{bitflags, BitFlags};
 
 use super::version::{Version, Version10X};
-use super::v10x::{V10X, V10XHeader, DirRecord, ToArchiveBitFlags, Versioned};
+use super::v10x::{V10XArchive, V10XHeader, DirRecord, ToArchiveBitFlags, Versioned};
 use super::v103;
 pub use super::v103::BZString;
 
@@ -53,7 +53,8 @@ impl ToArchiveBitFlags for ArchiveFlag {
 }
 
 pub type Header = V10XHeader<ArchiveFlag>;
-pub enum V104T{}
+pub enum V104T {}
+pub type BsaArchive<R> = V10XArchive<R, V104T, ArchiveFlag, DirRecord>;
 impl Versioned for V104T {
     fn version() -> Version { Version::V10X(Version10X::V104) }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -64,5 +65,3 @@ impl Versioned for V104T {
         v103::V103T::uncompress(reader, writer)
     }
 }
-
-pub type V104 = V10X<V104T, ArchiveFlag, DirRecord>;

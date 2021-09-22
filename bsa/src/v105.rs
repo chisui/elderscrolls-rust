@@ -6,7 +6,7 @@ use bytemuck::{Zeroable, Pod};
 pub use super::bin::{read_struct, Readable};
 pub use super::version::{Version, Version10X};
 pub use super::hash::{hash_v10x, Hash};
-pub use super::v10x::{V10X, Versioned};
+pub use super::v10x::{V10XArchive, Versioned};
 pub use super::v10x;
 pub use super::v104::{ArchiveFlag, Header, BZString};
 
@@ -48,4 +48,4 @@ impl Versioned for V105T {
     }
 }
 
-pub type V105 = V10X<V105T, ArchiveFlag, RawDirRecord>;
+pub type BsaArchive<R> = V10XArchive<R, V105T, ArchiveFlag, RawDirRecord>;

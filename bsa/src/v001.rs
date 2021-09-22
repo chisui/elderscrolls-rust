@@ -3,7 +3,7 @@ use std::mem::size_of;
 use bytemuck::{Pod, Zeroable};
 
 use super::bin::{read_struct, Readable};
-use super::version::MagicNumber;
+use super::magicnumber::MagicNumber;
 pub use super::bzstring::{BZString, NullTerminated};
 
 

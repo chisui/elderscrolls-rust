@@ -12,7 +12,7 @@ pub struct BZString {
 }
 impl fmt::Debug for BZString {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "\"{}\"", self.value)
+        self.value.fmt(f)
     }
 }
 impl From<BZString> for String {

@@ -4,6 +4,7 @@ pub mod hash;
 pub mod archive;
 pub mod bin;
 pub mod bzstring;
+pub mod magicnumber;
 pub mod version;
 pub mod v001;
 pub mod v10x;
@@ -24,63 +25,72 @@ use version::{Version, Version10X};
 struct UnsupportedVersion(pub Version);
 
 
-pub enum SomeBsa {
-    V103(v103::V103),
-    V104(v104::V104),
-    V105(v105::V105),
+pub enum BsaArchive<R> {
+    V103(v103::BsaArchive<R>),
+    V104(v104::BsaArchive<R>),
+    V105(v105::BsaArchive<R>),
 }
-impl fmt::Display for SomeBsa {
+pub enum BsaHeader {
+    V103(v103::Header),
+    V104(v104::Header),
+    V105(v105::Header),
+}
+impl<R> fmt::Display for BsaArchive<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SomeBsa::V103(bsa) => bsa.fmt(f),
-            SomeBsa::V104(bsa) => bsa.fmt(f),
-            SomeBsa::V105(bsa) => bsa.fmt(f),
+            BsaArchive::V103(bsa) => bsa.fmt(f),
+            BsaArchive::V104(bsa) => bsa.fmt(f),
+            BsaArchive::V105(bsa) => bsa.fmt(f),
         }
     }
 }
-impl Bsa for SomeBsa {
-    fn open<R: Read + Seek>(mut reader: R) -> Result<SomeBsa> {
-        let version = Version::read(&mut reader, &())?;
-        match version {
+impl<R: Read + Seek> BsaArchive<R> {
+    pub fn open(mut reader: R) -> Result<BsaArchive<R>> {
+        match Version::read(&mut reader, &())? {
             Version::V10X(v) => match v {
-                Version10X::V103 => {
-                    let bsa = v103::V103::open(&mut reader)?;
-                    Ok(SomeBsa::V103(bsa))
-                },
-                Version10X::V104 => {
-                    let bsa = v104::V104::open(&mut reader)?;
-                    Ok(SomeBsa::V104(bsa))
-                },
-                Version10X::V105 => {
-                    let bsa = v105::V105::open(&mut reader)?;
-                    Ok(SomeBsa::V105(bsa))
-                },
+                Version10X::V103 => v103::BsaArchive::open(reader)
+                    .map(BsaArchive::V103),
+                Version10X::V104 => v104::BsaArchive::open(reader)
+                    .map(BsaArchive::V104),
+                Version10X::V105 => v105::BsaArchive::open(reader)
+                    .map(BsaArchive::V105),
             },
             v => Err(Error::new(ErrorKind::InvalidData, UnsupportedVersion(v))),
         }
     }
+}
+impl<R: Read + Seek> Bsa for BsaArchive<R> {
+    type Header = BsaHeader;
 
     fn version(&self) -> Version {
         match self {
-            SomeBsa::V103(bsa) => bsa.version(),
-            SomeBsa::V104(bsa) => bsa.version(),
-            SomeBsa::V105(bsa) => bsa.version(),
+            BsaArchive::V103(bsa) => bsa.version(),
+            BsaArchive::V104(bsa) => bsa.version(),
+            BsaArchive::V105(bsa) => bsa.version(),
         }
     }
 
-    fn read_dirs<R: Read + Seek>(&self, reader: R) -> Result<Vec<BsaDir>> {
+    fn header(&self) -> Self::Header {
         match self {
-            SomeBsa::V103(bsa) => bsa.read_dirs(reader),
-            SomeBsa::V104(bsa) => bsa.read_dirs(reader),
-            SomeBsa::V105(bsa) => bsa.read_dirs(reader),
+            BsaArchive::V103(bsa) => BsaHeader::V103(bsa.header()),
+            BsaArchive::V104(bsa) => BsaHeader::V104(bsa.header()),
+            BsaArchive::V105(bsa) => BsaHeader::V105(bsa.header()),
         }
     }
 
-    fn extract<R: Read + Seek, W: Write>(&self, file: BsaFile, reader: R, writer: W) -> Result<()> {
+    fn read_dirs(&mut self) -> Result<Vec<BsaDir>> {
         match self {
-            SomeBsa::V103(bsa) => bsa.extract(file, reader, writer),
-            SomeBsa::V104(bsa) => bsa.extract(file, reader, writer),
-            SomeBsa::V105(bsa) => bsa.extract(file, reader, writer),
+            BsaArchive::V103(bsa) => bsa.read_dirs(),
+            BsaArchive::V104(bsa) => bsa.read_dirs(),
+            BsaArchive::V105(bsa) => bsa.read_dirs(),
+        }
+    }
+
+    fn extract<W: Write>(&mut self, file: BsaFile, writer: W) -> Result<()> {
+        match self {
+            BsaArchive::V103(bsa) => bsa.extract(file, writer),
+            BsaArchive::V104(bsa) => bsa.extract(file, writer),
+            BsaArchive::V105(bsa) => bsa.extract(file, writer),
         }
     }
 }
