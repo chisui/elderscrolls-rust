@@ -10,8 +10,8 @@ use bsa::bzstring::NullTerminated;
 use bsa::bin::{self, Writable};
 use bsa::version::{Version, Version10X};
 use bsa::v105;
-use bsa::SomeBsa;
-use bsa::archive::Bsa;
+use bsa::BsaArchive;
+use bsa::archive::{Bsa, FileId};
 
 mod cli;
 use crate::cli::{Cmds, Info, List, Extract, Create};
@@ -39,7 +39,7 @@ impl Cmd for Info {
     fn exec(&self) -> Result<()> {
         let mut reader = File::open(&self.file)
             .map(BufReader::new)?;
-        let bsa = SomeBsa::open(&mut reader)?;
+        let bsa = BsaArchive::open(&mut reader)?;
         println!("{}", bsa);
         Ok(())
     }
@@ -50,9 +50,8 @@ impl Cmd for List {
         let mut reader = File::open(&self.file)
             .map(BufReader::new)?;
 
-        let bsa = SomeBsa::open(&mut reader)?;
-        let dirs = bsa.read_dirs(&mut reader)?;
-        for dir in dirs {
+        let mut bsa = BsaArchive::open(&mut reader)?;
+        for dir in bsa.read_dirs()? {
             for file in dir.files {
                 if self.attributes {
                     let c = if file.compressed { "c" } else { " " };
@@ -66,44 +65,57 @@ impl Cmd for List {
     }
 }
 
-fn should_extract(paths: &Vec<Pattern>, path: &String) -> bool {
-    let match_opt = MatchOptions {
-        case_sensitive: false,
-        require_literal_leading_dot: false,
-        require_literal_separator: false,
-    };
-    paths.is_empty()
-        || paths.iter().any(|p|
-            p.matches_with(&path, match_opt)
-            || path.starts_with(p.as_str()))
+
+struct FileMatcher {
+    patterns: Vec<Pattern>,
 }
+impl FileMatcher {
+    fn matches(&self, path: &String) -> bool {
+        let match_opt = MatchOptions {
+            case_sensitive: false,
+            require_literal_leading_dot: false,
+            require_literal_separator: false,
+        };
+        self.patterns.is_empty()
+            || self.patterns.iter().any(|p|
+                p.matches_with(&path, match_opt)
+                || path.starts_with(p.as_str()))
+    }
+}
+
 impl Cmd for Extract {
     fn exec(&self) -> Result<()> {
+        let matcher = FileMatcher {
+            patterns: self.paths.clone()
+        };
+
         let mut reader = File::open(&self.file)
             .map(BufReader::new)?;
 
-        let bsa = SomeBsa::open(&mut reader)?;
-        let dirs = bsa.read_dirs(&mut reader)?;
+        let mut bsa = BsaArchive::open(&mut reader)?;
 
-        fs::create_dir_all(&self.output)?;
-
+        let dirs = bsa.read_dirs()?;
         for dir in dirs {
             for file in dir.files {
                 let file_path = format!("{}/{}", dir.name, file.name);
-                if should_extract(&self.paths, &file_path) {
+                if matcher.matches(&file_path) {
                     println!("{}", file_path);
-                    let mut path_buf = PathBuf::from(&self.output);
-                    path_buf.push(format!("{}", dir.name));
-                    fs::create_dir_all(&path_buf)?;
-                    path_buf.push(format!("{}", file.name));
-                    let mut writer = File::create(path_buf.as_path())?;
-                    bsa.extract(file, &mut reader, &mut writer)?;
+                    let mut out = open_output_file(&self.output, &dir.name, &file.name)?;
+                    bsa.extract(file, &mut out)?;
                 }
             }
         }
 
         Ok(())
     }
+}
+
+fn open_output_file(out: &PathBuf, dir: &FileId, file: &FileId) -> Result<File> {
+    let mut path_buf = PathBuf::from(out);
+    path_buf.push(format!("{}", dir));
+    fs::create_dir_all(&path_buf)?;
+    path_buf.push(format!("{}", file));
+    File::create(path_buf.as_path())
 }
 
 
