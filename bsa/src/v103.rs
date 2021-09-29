@@ -5,7 +5,14 @@ use enumflags2::{bitflags, BitFlags};
 use libflate::zlib;
 
 use super::version::{Version, Version10X};
-use super::v10x::{V10XArchive, ToArchiveBitFlags, Versioned, DirRecord};
+use super::v10x::{
+    V10XArchive,
+    V10XWriter,
+    V10XWriterOptions,
+    ToArchiveBitFlags,
+    Versioned,
+    DirRecord
+};
 pub use super::v10x::V10XHeader;
 pub use super::bzstring::BZString;
 
@@ -61,4 +68,12 @@ impl Versioned for V103T {
         let mut decoder = zlib::Decoder::new(&mut reader)?;
         copy(&mut decoder, &mut writer)
     }
+
+    fn compress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
+        let mut encoder = zlib::Encoder::new(&mut writer)?;
+        copy(&mut reader, &mut encoder)
+    }
 }
+
+pub type BsaWriter = V10XWriter<V103T, ArchiveFlag, DirRecord>;
+pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;

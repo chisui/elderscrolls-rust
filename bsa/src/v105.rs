@@ -6,7 +6,7 @@ use bytemuck::{Zeroable, Pod};
 pub use super::bin::{read_struct, Readable};
 pub use super::version::{Version, Version10X};
 pub use super::hash::{hash_v10x, Hash};
-pub use super::v10x::{V10XArchive, Versioned};
+pub use super::v10x::{V10XArchive, V10XWriter, V10XWriterOptions, Versioned};
 pub use super::v10x;
 pub use super::v104::{ArchiveFlag, Header, BZString};
 
@@ -46,6 +46,14 @@ impl Versioned for V105T {
         let mut decoder = lz4::Decoder::new(&mut reader)?;
         copy(&mut decoder, &mut writer)
     }
+
+    fn compress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
+        let mut encoder = lz4::EncoderBuilder::new()
+            .build(&mut writer)?;
+        copy(&mut reader, &mut encoder)
+    }
 }
 
 pub type BsaArchive<R> = V10XArchive<R, V105T, ArchiveFlag, RawDirRecord>;
+pub type BsaWriter = V10XWriter<V105T, ArchiveFlag, RawDirRecord>;
+pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;

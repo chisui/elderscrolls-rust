@@ -4,7 +4,15 @@ use std::fmt;
 use enumflags2::{bitflags, BitFlags};
 
 use super::version::{Version, Version10X};
-use super::v10x::{V10XArchive, V10XHeader, DirRecord, ToArchiveBitFlags, Versioned};
+use super::v10x::{
+    V10XArchive,
+    V10XHeader,
+    V10XWriter,
+    V10XWriterOptions,
+    DirRecord,
+    ToArchiveBitFlags,
+    Versioned,
+};
 use super::v103;
 pub use super::v103::BZString;
 
@@ -50,6 +58,7 @@ impl ToArchiveBitFlags for ArchiveFlag {
     fn is_compressed_by_default() -> Self { ArchiveFlag::CompressedArchive }
     fn includes_file_names() -> Self { ArchiveFlag::IncludeFileNames }
     fn includes_dir_names() -> Self { ArchiveFlag::IncludeDirectoryNames }
+    fn embed_file_names() -> Option<Self> { Some(ArchiveFlag::EmbedFileNames) }
 }
 
 pub type Header = V10XHeader<ArchiveFlag>;
@@ -64,4 +73,11 @@ impl Versioned for V104T {
     fn uncompress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64> {
         v103::V103T::uncompress(reader, writer)
     }
+
+    fn compress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64> {
+        v103::V103T::compress(reader, writer)
+    }
 }
+
+pub type BsaWriter = V10XWriter<V104T, ArchiveFlag, DirRecord>;
+pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;

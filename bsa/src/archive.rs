@@ -1,4 +1,4 @@
-use std::io::{Result, Write};
+use std::io::{Result, Read, Write, Seek};
 use std::fmt;
 
 use super::hash::Hash;
@@ -63,7 +63,19 @@ pub trait Bsa: fmt::Display + Sized {
     fn extract<W: Write>(&mut self, file: BsaFile, writer: W) -> Result<()>;
 }
 
-
+pub struct BsaDirSource {
+    pub name: String,
+    pub files: Vec<BsaFileSource>,
+}
+pub struct BsaFileSource {
+    pub name: String,
+    pub compressed: Option<bool>,
+    pub data: Box<dyn Read>,
+}
 pub trait BsaWriter {
-    
+    type Options;
+    fn write<D, W>(opts: Self::Options, dirs: D, out: W) -> Result<()>
+    where
+        D: IntoIterator<Item = BsaDirSource> + Copy,
+        W: Write + Seek;
 }

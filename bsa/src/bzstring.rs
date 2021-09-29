@@ -15,6 +15,13 @@ impl fmt::Debug for BZString {
         self.value.fmt(f)
     }
 }
+impl From<String> for BZString {
+    fn from(value: String) -> BZString {
+        BZString {
+            value
+        }
+    }
+}
 impl From<BZString> for String {
     fn from(s: BZString) -> String {
         s.value
@@ -45,6 +52,16 @@ impl Readable for BZString {
         reader.read_exact(&mut chars)?;
         reader.seek(SeekFrom::Current(1))?; // skip null byte.
         BZString::try_from(chars)
+    }
+}
+impl Writable for BZString {
+    fn size(&self) -> usize {
+        self.value.len() + 2 // length byte + chars + null
+    }
+    fn write_here<W: Write>(&self, mut out: W) -> Result<()> {
+        (self.value.len() as u8).write_here(&mut out)?;
+        write_many(self.value.bytes(), &mut out)?;
+        (0 as u8).write_here(&mut out)
     }
 }
 

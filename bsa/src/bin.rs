@@ -67,39 +67,17 @@ default impl<T: Sized + fmt::Debug + Pod> Readable for T {
         read_struct(reader)
     }
 }
-impl Readable for u8 {
-    fn read_here<R: Read + Seek>(reader: R, _: &Self::ReadableArgs) -> Result<Self> {
-        read_struct(reader)
-    }
-}
-impl Readable for u16 {
-    fn read_here<R: Read + Seek>(reader: R, _: &Self::ReadableArgs) -> Result<Self> {
-        read_struct(reader)
-    }
-}
-impl Readable for u32 {
-    fn read_here<R: Read + Seek>(reader: R, _: &Self::ReadableArgs) -> Result<Self> {
-        read_struct(reader)
-    }
-}
-impl Readable for u64 {
-    fn read_here<R: Read + Seek>(reader: R, _: &Self::ReadableArgs) -> Result<Self> {
-        read_struct(reader)
-    }
-}
+impl Readable for u8  {}
+impl Readable for u16 {}
+impl Readable for u32 {}
+impl Readable for u64 {}
 
 pub trait Writable {
     fn size(&self) -> usize;
 
     fn write_here<W: Write>(&self, writer: W) -> Result<()>;
 }
-default impl<T: Sized + fmt::Debug + Pod> Writable for T {
-    fn size(&self) -> usize { size_of::<Self>() }
-    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        write_struct(self, writer)
-    }
-}
-impl Writable for u8 {
+impl Writable for u8  {
     fn size(&self) -> usize { size_of::<Self>() }
     fn write_here<W: Write>(&self, writer: W) -> Result<()> {
         write_struct(self, writer)
@@ -121,6 +99,32 @@ impl Writable for u64 {
     fn size(&self) -> usize { size_of::<Self>() }
     fn write_here<W: Write>(&self, writer: W) -> Result<()> {
         write_struct(self, writer)
+    }
+}
+impl<A: Writable> Writable for Vec<A> {
+    fn size(&self) -> usize {
+        self.into_iter()
+            .map(|a| a.size())
+            .sum()
+    }
+    fn write_here<W: Write>(&self, mut out: W) -> Result<()> {
+        for a in self {
+            a.write_here(&mut out)?;
+        }
+        Ok(())
+    }
+}
+impl<A: Writable> Writable for Option<A> {
+    fn size(&self) -> usize {
+        self.into_iter()
+            .map(|a| a.size())
+            .sum()
+    }
+    fn write_here<W: Write>(&self, mut out: W) -> Result<()> {
+        for a in self {
+            a.write_here(&mut out)?;
+        }
+        Ok(())
     }
 }
 

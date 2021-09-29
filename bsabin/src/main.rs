@@ -135,9 +135,10 @@ impl Cmd for Create {
             return Ok(())
         }
 
-        let mut writer = File::create(output)?;
-        Version::V10X(Version10X::V105).write_here(&mut writer)?;
-
+        let mut file = File::create(output)?;
+        let mut writer = v105::BsaWriter::new(file,
+            v105::BsaWriterOptions::default())?;
+        
         let dirs = list_dir(&self.file)?;
         for (dir, files) in &dirs {
             println!("{} ->", dir.to_string_lossy());
