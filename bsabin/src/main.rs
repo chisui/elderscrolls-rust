@@ -1,8 +1,9 @@
-use std::io::{BufReader, Result};
+use std::io::{BufReader, Result, Error, ErrorKind};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use clap::Clap;
 use glob::{Pattern, MatchOptions};
+use thiserror::Error;
 
 use bsa;
 use bsa::v105;
@@ -66,6 +67,12 @@ struct FileMatcher {
     patterns: Vec<Pattern>,
 }
 impl FileMatcher {
+    fn new(patterns: &Vec<Pattern>) -> Self {
+        FileMatcher {
+            patterns: patterns.clone()
+        }
+    }
+
     fn matches(&self, path: &String) -> bool {
         let match_opt = MatchOptions {
             case_sensitive: false,
@@ -81,9 +88,7 @@ impl FileMatcher {
 
 impl Cmd for Extract {
     fn exec(&self) -> Result<()> {
-        let matcher = FileMatcher {
-            patterns: self.paths.clone()
-        };
+        let matcher = FileMatcher::new(&self.paths);
 
         let mut reader = File::open(&self.file)
             .map(BufReader::new)?;
@@ -111,8 +116,21 @@ fn open_output_file(out: &PathBuf, dir: &FileId, file: &FileId) -> Result<File> 
     path_buf.push(format!("{}", dir));
     fs::create_dir_all(&path_buf)?;
     path_buf.push(format!("{}", file));
+    check_exists(&path_buf)?;
     File::create(path_buf.as_path())
 }
+
+fn check_exists(path: &PathBuf) -> Result<()> {
+    if path.exists() {
+        Err(Error::new(ErrorKind::AlreadyExists, FileAlreadyExists(path.clone())))
+    } else {
+        Ok(())
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("{0} already exists")]
+struct FileAlreadyExists(PathBuf);
 
 
 impl Cmd for Create {
@@ -126,10 +144,7 @@ impl Cmd for Create {
             },
         };
 
-        if output.exists() {
-            println!("{} already exists", output.to_string_lossy());
-            return Ok(())
-        }
+        check_exists(&output)?;
 
         let opts = v105::BsaWriterOptions::default();
         
@@ -158,7 +173,10 @@ fn list_dir(dir: &Path) -> Result<Vec<BsaDirSource<PathBuf>>> {
             }
         }
         if !files.is_empty() {
-            res.push(BsaDirSource::new(path.into_os_string().into_string().unwrap(), files));
+            res.push(BsaDirSource {
+                name: path.into_os_string().into_string().unwrap(), 
+                files
+            });
         }
     }
     Ok(res)
