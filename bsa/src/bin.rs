@@ -1,4 +1,6 @@
-use std::io::{Read, Write, Seek, SeekFrom, Result};
+use std::io::{Read, Write, Seek, SeekFrom, Result, Cursor};
+use std::path;
+use std::fs;
 use std::mem::size_of;
 use std::fmt;
 use bytemuck::Pod;
@@ -143,4 +145,69 @@ where I::Item: Writable {
 
 pub const fn concat_bytes([a, b, c, d]: [u8; 4]) -> u32 {
     (a as u32) | ((b as u32) << 8) | ((c as u32) << 16) | ((d as u32) << 24)
+}
+
+pub struct Positioned<A> {
+    pub position: u64,
+    pub data: A,
+}
+impl<A: Writable> Positioned<A> {
+    
+    pub fn new<W: Write + Seek>(data: A, mut out: W) -> Result<Self> {
+        let position = out.stream_position()?;
+        data.write_here(&mut out)?;
+        Ok(Self { position, data })
+    }
+
+    pub fn new_empty<W: Write + Seek>(out: W) ->  Result<Self> 
+    where A: Default {
+        Self::new(A::default(), out)
+    }
+
+    pub fn update<W: Write + Seek>(&mut self, mut out: W) -> Result<()> {
+        let tmp_pos = out.stream_position()?;
+        out.seek(SeekFrom::Start(self.position))?;
+        self.data.write_here(&mut out)?;
+        out.seek(SeekFrom::Start(tmp_pos))?;
+        Ok(())
+    }
+
+    pub fn map<F, W>(&mut self, out: W, f: F) -> Result<()>
+    where
+        F: FnOnce(&A) -> Result<A>,
+        W: Write + Seek
+    {
+        self.data = f(&self.data)?;
+        self.update(out)
+    }
+}
+
+pub trait DataSource
+where Self::Read: Read {
+    type Read;
+    fn open(&self) -> Result<Self::Read>;
+}
+impl DataSource for path::Path {
+    type Read = fs::File;
+    fn open(&self) -> Result<Self::Read> {
+        fs::File::open(self)
+    }
+}
+impl DataSource for path::PathBuf {
+    type Read = fs::File;
+    fn open(&self) -> Result<Self::Read> {
+        fs::File::open(self)
+    }
+}
+impl DataSource for &[u8] {
+    type Read = Cursor<Vec<u8>>;
+    fn open(&self) -> Result<Cursor<Vec<u8>>> {
+        self.to_vec().open()
+    }
+}
+impl DataSource for Vec<u8> {
+    type Read = Cursor<Vec<u8>>;
+    fn open(&self) -> Result<Cursor<Vec<u8>>> {
+        Ok(Cursor::new(self.to_vec()))
+    }
 }

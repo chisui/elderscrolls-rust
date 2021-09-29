@@ -39,6 +39,8 @@ dependencies = [
  "enumflags2",
  "libflate",
  "lz4",
+ "macro-attr-2018",
+ "newtype-derive-2018",
  "thiserror",
 ]
 
@@ -144,6 +146,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "generics"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "744f01f99b59cc6adfb456c4c8a34cda19c8f4edb541c536898f863c5b94beb2"
+
+[[package]]
 name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -233,6 +241,21 @@ checksum = "dca79aa95d8b3226213ad454d328369853be3a1382d89532a854f4d69640acae"
 dependencies = [
  "cc",
  "libc",
+]
+
+[[package]]
+name = "macro-attr-2018"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7617acf97b6dc54a533ab057a702165ce2b9ae4fd5d1fcae95efe4b05dd6370"
+
+[[package]]
+name = "newtype-derive-2018"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28c5531501441e2dc00392bd54c6c5096fd8ac85559d6c78936f6eb83454ab8e"
+dependencies = [
+ "generics",
 ]
 
 [[package]]

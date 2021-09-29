@@ -3,7 +3,8 @@ use std::fmt;
 use bytemuck::{Zeroable, Pod};
 
 
-pub use super::bin::{read_struct, Readable};
+pub use super::bin::{read_struct, write_struct, Readable, Writable};
+pub use super::archive::{Bsa};
 pub use super::version::{Version, Version10X};
 pub use super::hash::{hash_v10x, Hash};
 pub use super::v10x::{V10XArchive, V10XWriter, V10XWriterOptions, Versioned};
@@ -25,12 +26,29 @@ impl Readable for RawDirRecord {
         read_struct(reader)
     }
 }
+impl Writable for RawDirRecord {
+    fn size(&self) -> usize { core::mem::size_of::<Self>() }
+    fn write_here<W: Write>(&self, out: W) -> Result<()> {
+        write_struct(self, out)
+    }
+}
 impl From<RawDirRecord> for v10x::DirRecord {
     fn from(rec: RawDirRecord) -> Self {
         Self {
-            name_hash: Hash::from(rec.name_hash),
+            name_hash: rec.name_hash,
             file_count: rec.file_count,
             offset: rec.offset,
+        }
+    }
+}
+impl From<v10x::DirRecord> for RawDirRecord {
+    fn from(rec: v10x::DirRecord) -> Self {
+        Self {
+            name_hash: rec.name_hash,
+            file_count: rec.file_count,
+            _padding_pre: 0,
+            offset: rec.offset,
+            _padding_post: 0,
         }
     }
 }
@@ -57,3 +75,35 @@ impl Versioned for V105T {
 pub type BsaArchive<R> = V10XArchive<R, V105T, ArchiveFlag, RawDirRecord>;
 pub type BsaWriter = V10XWriter<V105T, ArchiveFlag, RawDirRecord>;
 pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;
+
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+    use crate::archive::{FileId, BsaWriter, Bsa, BsaDirSource, BsaFileSource};
+    use crate::v105;
+    use super::*;
+
+    #[test]
+    fn write_read_identity() -> Result<()> {
+        // given
+        let out_dirs: Vec<BsaDirSource<Vec<u8>>> = vec![
+            BsaDirSource::new("a".to_owned(), vec![
+                    BsaFileSource::new("b".to_owned(), vec![])
+            ])
+        ];
+
+        let mut out = Cursor::new(Vec::<u8>::new());
+        v105::BsaWriter::write_bsa(BsaWriterOptions::default(), out_dirs, &mut out)?;
+        let bytes = Cursor::new(out.into_inner());
+        let mut bsa = v105::BsaArchive::open(bytes)?;
+        let in_dirs = bsa.read_dirs()?;
+        
+        assert_eq!(in_dirs.len(), 1, "in_dirs.len()");
+        assert_eq!(in_dirs[0].files.len(), 1, "in_dirs[0].files.len()");
+        assert_eq!(in_dirs[0].name, FileId::String("a".to_owned()), "in_dirs[0].name");
+        assert_eq!(in_dirs[0].files[0].name, FileId::String("b".to_owned()), "in_dirs[0].files[0].name");
+        
+        Ok(())
+    }
+}

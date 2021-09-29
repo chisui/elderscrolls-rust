@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 
 use super::bin::{read_struct, Readable};
 use super::magicnumber::MagicNumber;
-pub use super::bzstring::{BZString, NullTerminated};
+pub use super::str::{BZString, ZString};
 
 
 #[repr(C)]
@@ -50,7 +50,7 @@ impl Readable for FileRecords {
 }
 
 #[derive(Debug)]
-pub struct FileNames(pub Vec<NullTerminated>);
+pub struct FileNames(pub Vec<ZString>);
 impl Readable for FileNames {
     type ReadableArgs = Header;
     fn offset(header: &Header) -> Option<usize> {
@@ -58,7 +58,7 @@ impl Readable for FileNames {
             .map(|fr| fr + (header.num_files as usize) * size_of::<FileRecord>())
     }
     fn read_here<R: Read + Seek>(reader: R, header: &Header) -> Result<Self> {
-        NullTerminated::read_many0(reader, header.num_files as usize)
+        ZString::read_many0(reader, header.num_files as usize)
             .map(FileNames)
     }
 }

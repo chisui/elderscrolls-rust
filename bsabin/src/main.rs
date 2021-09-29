@@ -1,17 +1,13 @@
 use std::io::{BufReader, Result};
 use std::fs::{self, File};
-use std::str::FromStr;
 use std::path::{Path, PathBuf};
 use clap::Clap;
 use glob::{Pattern, MatchOptions};
 
 use bsa;
-use bsa::bzstring::NullTerminated;
-use bsa::bin::{self, Writable};
-use bsa::version::{Version, Version10X};
 use bsa::v105;
 use bsa::BsaArchive;
-use bsa::archive::{Bsa, FileId};
+use bsa::archive::{Bsa, FileId, BsaDirSource, BsaFileSource, BsaWriter};
 
 mod cli;
 use crate::cli::{Cmds, Info, List, Extract, Create};
@@ -135,50 +131,34 @@ impl Cmd for Create {
             return Ok(())
         }
 
-        let mut file = File::create(output)?;
-        let mut writer = v105::BsaWriter::new(file,
-            v105::BsaWriterOptions::default())?;
+        let opts = v105::BsaWriterOptions::default();
         
         let dirs = list_dir(&self.file)?;
-        for (dir, files) in &dirs {
-            println!("{} ->", dir.to_string_lossy());
-            for file in files {
-                println!("    {}", file.file_name().to_string_lossy());
-            }
-        }
-        let file_names: Vec<NullTerminated> = dirs.iter()
-            .flat_map(|(_, files)| files)
-            .map(|f| NullTerminated::from_str(&f.file_name().to_string_lossy()).unwrap())
-            .collect();
-        let mut header = v105::Header::default();
-        header.folder_count = dirs.len() as u32;
-        header.file_count = file_names.len() as u32;
-        header.total_file_name_length = bin::size_many(&file_names) as u32;
-        header.total_folder_name_length = dirs.iter()
-            .map(|(dir, _)| (dir.to_string_lossy().len() as u32) + 1)
-            .sum();
-        header.write_here(writer)?;
-        println!("{:#?}", header);
-        Ok(())
+        let file = File::create(output)?;
+        v105::BsaWriter::write_bsa(opts, dirs, file)
     }
 }
 
-fn list_dir(dir: &Path) -> Result<Vec<(Box<Path>, Vec<fs::DirEntry>)>> {
+fn list_dir(dir: &Path) -> Result<Vec<BsaDirSource<PathBuf>>> {
     let mut stack = vec![PathBuf::new()];
     let mut res = vec![];
     while let Some(path) = stack.pop() {
         let mut files = vec![];
-        let pwd: PathBuf = [dir, &path].iter().collect();
-        for e in fs::read_dir(pwd)? {
+        let cwd: PathBuf = [dir, &path].iter().collect();
+        for e in fs::read_dir(cwd)? {
             let entry = e?;
             if entry.file_type()?.is_dir() {
                 stack.push([&path, &PathBuf::from(entry.file_name())].iter().collect());
             } else {
-                files.push(entry);
+                files.push(BsaFileSource {
+                    name: entry.file_name().into_string().unwrap(),
+                    compressed: None,
+                    data: entry.path(),
+                });
             }
         }
         if !files.is_empty() {
-            res.push((path.into(), files));
+            res.push(BsaDirSource::new(path.into_os_string().into_string().unwrap(), files));
         }
     }
     Ok(res)

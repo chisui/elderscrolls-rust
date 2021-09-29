@@ -1,23 +1,22 @@
-use std::io::{Result, Read, Write, Seek};
+use std::io::{Result, Write, Seek};
 use std::fmt;
 
 use super::hash::Hash;
 use super::version::Version;
-use super::bzstring::BZString;
+use super::bin::DataSource;
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FileId {
-    HashId(Hash),
-    StringId(BZString),
+    Hash(Hash),
+    String(String),
 }
-
 impl fmt::Display for FileId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FileId::HashId(h)                   => write!(f, "#{}", h),
-            FileId::StringId(BZString{ value }) => {
-                write!(f, "{}", value.replace('\\', "/"))
+            FileId::Hash(h)                   => write!(f, "#{}", h),
+            FileId::String(s) => {
+                write!(f, "{}", s.replace('\\', "/"))
             },
         }
     }
@@ -63,19 +62,30 @@ pub trait Bsa: fmt::Display + Sized {
     fn extract<W: Write>(&mut self, file: BsaFile, writer: W) -> Result<()>;
 }
 
-pub struct BsaDirSource {
+pub struct BsaDirSource<D> {
     pub name: String,
-    pub files: Vec<BsaFileSource>,
+    pub files: Vec<BsaFileSource<D>>,
 }
-pub struct BsaFileSource {
+impl<D> BsaDirSource<D> {
+    pub fn new(name: String, files: Vec<BsaFileSource<D>>) -> Self {
+        Self { name, files }
+    }
+}
+pub struct BsaFileSource<D> {
     pub name: String,
     pub compressed: Option<bool>,
-    pub data: Box<dyn Read>,
+    pub data: D,
+}
+impl<D> BsaFileSource<D> {
+    pub fn new(name: String, data: D) -> Self {
+        Self { name, compressed: None, data}
+    }
 }
 pub trait BsaWriter {
     type Options;
-    fn write<D, W>(opts: Self::Options, dirs: D, out: W) -> Result<()>
+    fn write_bsa<DS, D, W>(opts: Self::Options, dirs: DS, out: W) -> Result<()>
     where
-        D: IntoIterator<Item = BsaDirSource> + Copy,
+        D: DataSource,
+        DS: IntoIterator<Item = BsaDirSource<D>>,
         W: Write + Seek;
 }

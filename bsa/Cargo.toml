@@ -11,3 +11,5 @@ bytemuck = { version = "1.5.1", features = ["derive"] }
 lz4 = "1.23.2"
 libflate = "1.1.0"
 thiserror = "1.0.28"
+newtype-derive-2018 = "0.0.3"
+macro-attr-2018 = "1.1.1"

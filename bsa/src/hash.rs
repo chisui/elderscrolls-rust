@@ -13,9 +13,14 @@ pub struct Hash {
     left: u32,
     right: u32,
 }
+impl From<Hash> for u64 {
+    fn from(h: Hash) -> u64 {
+        (h.left as u64 >> 16) + h.right as u64
+    }
+}
 impl From<u64> for Hash {
     fn from(n: u64) -> Self {
-        Hash {
+        Self {
             left: (n << 16) as u32,
             right: n as u32,
         }

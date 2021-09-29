@@ -3,7 +3,7 @@
 pub mod hash;
 pub mod archive;
 pub mod bin;
-pub mod bzstring;
+pub mod str;
 pub mod magicnumber;
 pub mod version;
 pub mod v001;

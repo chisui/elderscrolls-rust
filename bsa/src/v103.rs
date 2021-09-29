@@ -14,7 +14,7 @@ use super::v10x::{
     DirRecord
 };
 pub use super::v10x::V10XHeader;
-pub use super::bzstring::BZString;
+pub use super::str::BZString;
 
 
 #[bitflags]
@@ -22,24 +22,24 @@ pub use super::bzstring::BZString;
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ArchiveFlag {
     #[doc = "The game may not load a BSA without this bit set."]
-    pub IncludeDirectoryNames = 0x1,
+    IncludeDirectoryNames = 0x1,
     #[doc = "The game may not load a BSA without this bit set."]
-    pub IncludeFileNames = 0x2,
+    IncludeFileNames = 0x2,
     #[doc = "This does not mean all files are compressed. It means they are"]
     #[doc = "compressed by default."]
-    pub CompressedArchive = 0x4,
-    pub RetainDirectoryNames = 0x8,
+    CompressedArchive = 0x4,
+    RetainDirectoryNames = 0x8,
     #[doc = "Unknown, but observed being set in official BSA files containing"]
     #[doc = "sounds (but not voices). Possibly instructs the game to retain"]
     #[doc = "file names in memory."]
-    pub RetainFileNames = 0x10,
-    pub RetainFileNameOffsets = 0x20,
+    RetainFileNames = 0x10,
+    RetainFileNameOffsets = 0x20,
     #[doc = "Hash values and numbers after the header are encoded big-endian."]
-    pub Xbox360Archive = 0x40,
-    pub Ux80  = 0x80,
-    pub Ux100 = 0x100,
-    pub Ux200 = 0x200,
-    pub Ux400 = 0x400,
+    Xbox360Archive = 0x40,
+    Ux80  = 0x80,
+    Ux100 = 0x100,
+    Ux200 = 0x200,
+    Ux400 = 0x400,
 }
 impl ToArchiveBitFlags for ArchiveFlag {
     fn to_archive_bit_flags(bits: u32) -> BitFlags<Self> {
