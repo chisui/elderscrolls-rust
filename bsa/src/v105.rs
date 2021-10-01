@@ -80,30 +80,53 @@ pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
+    use enumflags2::BitFlags;
     use crate::archive::{FileId, BsaWriter, Bsa, BsaDirSource, BsaFileSource};
+    use crate::version::{Version, Version10X};
     use crate::v105;
     use super::*;
 
     #[test]
-    fn write_read_identity() -> Result<()> {
-        // given
-        let out_dirs: Vec<BsaDirSource<Vec<u8>>> = vec![
-            BsaDirSource::new("a".to_owned(), vec![
-                    BsaFileSource::new("b".to_owned(), vec![])
-            ])
-        ];
-
+    fn writes_version() {
         let mut out = Cursor::new(Vec::<u8>::new());
-        v105::BsaWriter::write_bsa(BsaWriterOptions::default(), out_dirs, &mut out)?;
+        v105::BsaWriter::write_bsa(BsaWriterOptions::default(), some_bsa_dirs(), &mut out)
+            .unwrap_or_else(|err| panic!("could not write bsa {}", err));
+        let mut bytes = Cursor::new(out.into_inner());
+
+        let v = Version::read0(&mut bytes)
+            .unwrap_or_else(|err| panic!("could not read version {}", err));
+        assert_eq!(v, Version::V10X(Version10X::V105));
+        let header = v105::Header::read0(&mut bytes)
+            .unwrap_or_else(|err| panic!("could not read header {}", err));
+
+        assert_eq!(header.archive_flags, BitFlags::empty()
+            | v105::ArchiveFlag::IncludeFileNames
+            | v105::ArchiveFlag::IncludeDirectoryNames);
+    }
+
+    #[test]
+    fn write_read_identity() {
+        let mut out = Cursor::new(Vec::<u8>::new());
+        v105::BsaWriter::write_bsa(BsaWriterOptions::default(), some_bsa_dirs(), &mut out)
+            .unwrap_or_else(|err| panic!("could not write bsa {}", err));
         let bytes = Cursor::new(out.into_inner());
-        let mut bsa = v105::BsaArchive::open(bytes)?;
-        let in_dirs = bsa.read_dirs()?;
-        
+        let mut bsa = v105::BsaArchive::open(bytes)
+            .unwrap_or_else(|err| panic!("could not open bsa {}", err));
+        let in_dirs = bsa.read_dirs()
+            .unwrap_or_else(|err| panic!("could not read dirs {}", err));
+
+
         assert_eq!(in_dirs.len(), 1, "in_dirs.len()");
         assert_eq!(in_dirs[0].files.len(), 1, "in_dirs[0].files.len()");
         assert_eq!(in_dirs[0].name, FileId::String("a".to_owned()), "in_dirs[0].name");
         assert_eq!(in_dirs[0].files[0].name, FileId::String("b".to_owned()), "in_dirs[0].files[0].name");
-        
-        Ok(())
+    }
+
+    fn some_bsa_dirs() -> Vec<BsaDirSource<Vec<u8>>> {
+        vec![
+            BsaDirSource::new("a".to_owned(), vec![
+                    BsaFileSource::new("b".to_owned(), vec![])
+            ])
+        ]
     }
 }
