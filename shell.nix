@@ -11,7 +11,7 @@ let
     channel = "nightly";
   };
 in mkShell {
-  name = "shell";
+  name = "bsa";
   buildInputs = [
     (rust-channel.rust.override {
       extensions = [
