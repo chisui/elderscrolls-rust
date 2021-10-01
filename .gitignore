@@ -4,6 +4,6 @@
 
 # Added by cargo
 
-/target
+**/target
 
 /index*
