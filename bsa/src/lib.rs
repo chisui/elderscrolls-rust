@@ -25,15 +25,25 @@ use version::{Version, Version10X};
 struct UnsupportedVersion(pub Version);
 
 
-pub enum BsaArchive<R> {
-    V103(v103::BsaArchive<R>),
-    V104(v104::BsaArchive<R>),
-    V105(v105::BsaArchive<R>),
-}
 pub enum BsaHeader {
     V103(v103::Header),
     V104(v104::Header),
     V105(v105::Header),
+}
+impl fmt::Display for BsaHeader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BsaHeader::V103(header) => header.fmt(f),
+            BsaHeader::V104(header) => header.fmt(f),
+            BsaHeader::V105(header) => header.fmt(f),
+        }
+    }
+}
+
+pub enum BsaArchive<R> {
+    V103(v103::BsaArchive<R>),
+    V104(v104::BsaArchive<R>),
+    V105(v105::BsaArchive<R>),
 }
 impl<R> fmt::Display for BsaArchive<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

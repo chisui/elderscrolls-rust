@@ -1,13 +1,14 @@
 use std::io::{BufReader, Result, Error, ErrorKind};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
+use std::fmt;
 use clap::Clap;
 use glob::{Pattern, MatchOptions};
 use thiserror::Error;
 
 use bsa;
 use bsa::v105;
-use bsa::BsaArchive;
+use bsa::{BsaArchive, BsaHeader};
 use bsa::archive::{Bsa, FileId, BsaDirSource, BsaFileSource, BsaWriter};
 
 mod cli;
@@ -37,7 +38,15 @@ impl Cmd for Info {
         let mut reader = File::open(&self.file)
             .map(BufReader::new)?;
         let bsa = BsaArchive::open(&mut reader)?;
-        println!("{}", bsa);
+        if self.verbose {
+            println!("{}", bsa.header());
+        } else {
+            match bsa.header() {
+                BsaHeader::V103(h) => println!("{}", Sparse(h)),
+                BsaHeader::V104(h) => println!("{}", Sparse(h)),
+                BsaHeader::V105(h) => println!("{}", Sparse(h)),
+            }
+        }
         Ok(())
     }
 }
@@ -180,4 +189,22 @@ fn list_dir(dir: &Path) -> Result<Vec<BsaDirSource<PathBuf>>> {
         }
     }
     Ok(res)
+}
+
+struct Sparse<A>(A);
+
+impl<AF: bsa::v10x::ToArchiveBitFlags + fmt::Debug> fmt::Display for Sparse<bsa::v10x::V10XHeader<AF>> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Direcotries: {}", self.0.dir_count)?;
+        writeln!(f, "Files:   {}", self.0.file_count)?;
+        writeln!(f, "Archive flags:")?;
+        for flag in self.0.archive_flags.iter() {
+            writeln!(f, "    {:?}", flag)?;
+        }
+        writeln!(f, "File flags:")?;
+        for flag in self.0.file_flags.iter() {
+            writeln!(f, "    {:?}", flag)?;
+        }
+        Ok(())
+    }
 }

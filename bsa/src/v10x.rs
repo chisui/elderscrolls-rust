@@ -50,9 +50,9 @@ pub enum FileFlag {
 pub struct RawHeader {
     pub offset: u32,
     pub archive_flags: u32,
-    pub folder_count: u32,
+    pub dir_count: u32,
     pub file_count: u32,
-    pub total_folder_name_length: u32,
+    pub total_dir_name_length: u32,
     pub total_file_name_length: u32,
     pub file_flags: u16,
     pub padding: u16,
@@ -62,17 +62,17 @@ pub struct RawHeader {
 pub struct V10XHeader<AF: BitFlag> {
     pub offset: u32,
     pub archive_flags: BitFlags<AF>,
-    pub folder_count: u32,
+    pub dir_count: u32,
     pub file_count: u32,
-    pub total_folder_name_length: u32,
+    pub total_dir_name_length: u32,
     pub total_file_name_length: u32,
     pub file_flags: BitFlags<FileFlag>,
     pub padding: u16,
 }
 impl<AF: BitFlag> V10XHeader<AF> {
     fn effective_total_dir_name_len(&self) -> usize {
-        self.total_folder_name_length as usize
-            + self.folder_count as usize // total_folder_name_length does not include size byte
+        self.total_dir_name_length as usize
+            + self.dir_count as usize // total_dir_name_length does not include size byte
     }
 }
 impl<AF: ToArchiveBitFlags + std::cmp::PartialEq> Eq for V10XHeader<AF> {}
@@ -88,9 +88,9 @@ impl<AF: ToArchiveBitFlags> From<RawHeader> for V10XHeader<AF> {
         let RawHeader {
             offset,
             archive_flags,
-            folder_count,
+            dir_count,
             file_count,
-            total_folder_name_length,
+            total_dir_name_length,
             total_file_name_length,
             file_flags,
             padding,
@@ -98,9 +98,9 @@ impl<AF: ToArchiveBitFlags> From<RawHeader> for V10XHeader<AF> {
         Self {
             offset,
             archive_flags: ToArchiveBitFlags::to_archive_bit_flags(archive_flags),
-            folder_count,
+            dir_count,
             file_count,
-            total_folder_name_length,
+            total_dir_name_length,
             total_file_name_length,
             file_flags: BitFlags::from_bits_truncate(file_flags),
             padding,
@@ -112,9 +112,9 @@ impl<AF: ToArchiveBitFlags> From<V10XHeader<AF>> for RawHeader {
         let V10XHeader {
             offset,
             archive_flags,
-            folder_count,
+            dir_count,
             file_count,
-            total_folder_name_length,
+            total_dir_name_length,
             total_file_name_length,
             file_flags,
             padding,
@@ -122,9 +122,9 @@ impl<AF: ToArchiveBitFlags> From<V10XHeader<AF>> for RawHeader {
         Self {
             offset,
             archive_flags: ToArchiveBitFlags::from_archive_bit_flags(archive_flags),
-            folder_count,
+            dir_count,
             file_count,
-            total_folder_name_length,
+            total_dir_name_length,
             total_file_name_length,
             file_flags: file_flags.bits(),
             padding,
@@ -168,17 +168,20 @@ impl<AF: ToArchiveBitFlags> bin::Writable for V10XHeader<AF> {
 
 impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for V10XHeader<AF> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Folders: {}", self.folder_count)?;
-        writeln!(f, "Files:   {}", self.file_count)?;
-        writeln!(f, "Archive flags:")?;
+        writeln!(f, "archive_flags:")?;
         for flag in self.archive_flags.iter() {
             writeln!(f, "    {:?}", flag)?;
         }
-        writeln!(f, "File flags:")?;
+        writeln!(f, "dir_count: {}", self.dir_count)?;
+        writeln!(f, "file_count: {}", self.file_count)?;
+        writeln!(f, "total_dir_name_length: {}", self.total_dir_name_length)?;
+        writeln!(f, "total_file_name_length: {}", self.total_file_name_length)?;
+        writeln!(f, "file_flags:")?;
         for flag in self.file_flags.iter() {
             writeln!(f, "    {:?}", flag)?;
         }
-        Ok(())
+        writeln!(f, "Direcotries: {}", self.dir_count)?;
+        writeln!(f, "Files:   {}", self.file_count)
     }
 }
 
@@ -189,7 +192,12 @@ pub struct V10XArchive<R, T, AF: ToArchiveBitFlags, RDR> {
     phantom_t: PhantomData<T>,
     phantom_rdr: PhantomData<RDR>,
 }
-impl<R: Read + Seek, T: Versioned, AF: ToArchiveBitFlags, RDR> V10XArchive<R, T, AF, RDR> {
+impl<R, T, AF, RDR> V10XArchive<R, T, AF, RDR>
+where
+    R: Read + Seek,
+    T: Versioned,
+    AF: ToArchiveBitFlags,
+{
     pub fn open(mut reader: R) -> Result<Self> {
         let header = V10XHeader::<AF>::read0(&mut reader)?;
         Ok(V10XArchive {
@@ -201,7 +209,7 @@ impl<R: Read + Seek, T: Versioned, AF: ToArchiveBitFlags, RDR> V10XArchive<R, T,
     }
 
     fn offset_file_names(&self) -> usize {
-        let dir_records_size = size_of::<RDR>() * self.header.folder_count as usize;
+        let dir_records_size = size_of::<RDR>() * self.header.dir_count as usize;
         let dir_names_size = if self.header.has(AF::includes_dir_names()) {
             self.header.effective_total_dir_name_len()
         } else {
@@ -300,7 +308,7 @@ where
 
     fn read_dirs(&mut self) -> Result<Vec<BsaDir>> {
         self.reader.seek(SeekFrom::Start(self.offset_after_header() as u64))?;
-        let raw_dirs = RDR::read_many0(&mut self.reader, self.header.folder_count as usize)?;
+        let raw_dirs = RDR::read_many0(&mut self.reader, self.header.dir_count as usize)?;
         let file_names = self.read_file_names()?;
         raw_dirs.iter()
             .map(|dir| DirRecord::from(*dir) )
@@ -432,11 +440,11 @@ where
         let includes_dir_names = opts.has(AF::includes_dir_names());
         
         for dir in dirs.iter() {
-            header.folder_count += 1;
+            header.dir_count += 1;
             header.file_count += dir.files.len() as u32;
             
             if includes_dir_names {
-                header.total_folder_name_length += (dir.name.len() as u32) + 1;
+                header.total_dir_name_length += (dir.name.len() as u32) + 1;
             }
             
             if includes_file_names {
@@ -647,9 +655,9 @@ mod tests {
             archive_flags: BitFlags::empty()
                 | v105::ArchiveFlag::CompressedArchive
                 | v105::ArchiveFlag::EmbedFileNames,
-            folder_count: 13,
+            dir_count: 13,
             file_count: 14,
-            total_folder_name_length: 15,
+            total_dir_name_length: 15,
             file_flags: BitFlags::empty()
                 | FileFlag::Fonts
                 | FileFlag::Menus,

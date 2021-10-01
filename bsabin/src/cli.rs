@@ -16,13 +16,16 @@ pub enum Cmds {
 #[derive(Debug, Clap)]
 #[clap()]
 pub struct Info {
+    #[clap(short, long)]
+    pub verbose: bool,
+
     #[clap(parse(from_os_str))]
     pub file: PathBuf,
 }
 
 #[derive(Debug, Clap)]
 #[clap()]
-pub struct List {        
+pub struct List {
     #[clap(short, long)]
     pub attributes: bool,
 
@@ -35,10 +38,10 @@ pub struct List {
 pub struct Extract {
     #[clap(short, long, parse(from_os_str), default_value=".")]
     pub output: PathBuf,
-    
+
     #[clap(parse(from_os_str))]
     pub file: PathBuf,
-    
+
     #[clap(parse(try_from_str))]
     pub paths: Vec<Pattern>,
 }
