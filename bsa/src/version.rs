@@ -12,9 +12,9 @@ pub enum Unknown {
     #[error("Unknown version {0}")]
     Version(u8),
     #[error("Unknown version {0}")]
-    MagicNumber(u32),
-    #[error("Unknown magic number {0}")]
     VersionString(String),
+    #[error("Unknown magic number {0}")]
+    MagicNumber(u32),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -65,6 +65,9 @@ impl bin::Writable for Version {
     }
 }
 impl bin::Readable for Version {
+    fn offset(_: &()) -> Option<usize> {
+        Some(0)
+    }
     fn read_here<R: Read + Seek>(mut buffer: R, _: &()) -> Result<Self> {
         let mg_nr = MagicNumber::read(&mut buffer, &())?;
         match mg_nr {
@@ -95,6 +98,34 @@ impl str::FromStr for Version {
             "v105" | "tes5se" | "skyrimse" => Ok(Version::V10X(Version10X::V105)),
             "v200" | "f4" | "fallout4" | "f76" | "fallout76" => Ok(Version::V200(1)),
             _ => Err(io::Error::new(io::ErrorKind::InvalidData, Unknown::VersionString(String::from(s)))),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+    use crate::bin::{Readable, Writable};
+    use super::*;
+
+    #[test]
+    fn write_read_identity_version() {
+        for v in [
+            Version::V100, 
+            Version::V10X(Version10X::V103), 
+            Version::V10X(Version10X::V104), 
+            Version::V10X(Version10X::V105), 
+            Version::V200(12),
+        ] {
+
+            let mut out = Cursor::new(Vec::<u8>::new());
+            v.write_here(&mut out)
+                .unwrap_or_else(|err| panic!("could not write {:#}: {}", v, err));
+            let mut input = Cursor::new(out.into_inner());
+            let v_in = Version::read_here0(&mut input)
+                .unwrap_or_else(|err| panic!("could not read {:#}: {}", v, err));
+            
+            assert_eq!(v, v_in, "{} == {}", v, v_in);
         }
     }
 }
