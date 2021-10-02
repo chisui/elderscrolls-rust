@@ -32,7 +32,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
-name = "bsa"
+name = "bsabin"
+version = "0.1.0"
+dependencies = [
+ "bsalib",
+ "clap",
+ "glob",
+ "thiserror",
+]
+
+[[package]]
+name = "bsalib"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
@@ -41,16 +51,6 @@ dependencies = [
  "lz4",
  "macro-attr-2018",
  "newtype-derive-2018",
- "thiserror",
-]
-
-[[package]]
-name = "bsabin"
-version = "0.1.0"
-dependencies = [
- "bsa",
- "clap",
- "glob",
  "thiserror",
 ]
 

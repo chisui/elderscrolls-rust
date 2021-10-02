@@ -8,11 +8,12 @@ use clap::Clap;
 use glob::{Pattern, MatchOptions};
 use thiserror::Error;
 
-use bsa::{
-    self,
-    {SomeBsaReader, SomeBsaHeader},
+use bsalib::{
+    SomeBsaReader,
+    SomeBsaHeader,
     archive::{self, BsaReader, BsaWriter, FileId},
     v105,
+    v10x::{ToArchiveBitFlags, V10XHeader},
 };
 mod cli;
 use crate::cli::{Cmds, Info, List, Extract, Create};
@@ -176,7 +177,7 @@ impl Cmd for Create {
 
 struct Sparse<A>(A);
 
-impl<AF: bsa::v10x::ToArchiveBitFlags + fmt::Debug> fmt::Display for Sparse<bsa::v10x::V10XHeader<AF>> {
+impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for Sparse<V10XHeader<AF>> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Direcotries: {}", self.0.dir_count)?;
         writeln!(f, "Files:   {}", self.0.file_count)?;

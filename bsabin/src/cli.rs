@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use clap::Clap;
 use glob::Pattern;
-use bsa::version::Version;
+use bsalib::version::Version;
 
 
 #[derive(Debug, Clap)]
