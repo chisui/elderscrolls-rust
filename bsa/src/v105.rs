@@ -128,16 +128,25 @@ mod tests {
 
         assert_eq!(dirs.len(), 1, "dirs.len()");
         assert_eq!(dirs[0].file_count, 1, "dirs[0].file_count");
+        assert_eq!(dirs[0].name_hash, hash_v10x("a"), "dirs[0].name_hash");
     }
 
     #[test]
     fn writes_dir_content_records() {
         let mut bytes = some_bsa_bytes();
 
-        bytes.seek(SeekFrom::Start(59))
-            .unwrap_or_else(|err| panic!("could not seek {}", err));
+
+        let header = v105::Header::read0(&mut bytes)
+            .unwrap_or_else(|err| panic!("could not read Header {}", err));
             
-        let dir_content = v105::DirContentRecord::read_here0(&mut bytes)
+        let dir_rec = v105::RawDirRecord::read_here0(&mut bytes)
+            .unwrap_or_else(|err| panic!("could not read dir rec {}", err));
+        
+        let offset = dir_rec.offset as u64 - header.total_dir_name_length as u64;
+        bytes.seek(SeekFrom::Start(offset))
+            .unwrap_or_else(|err| panic!("could not seek to offset {}", err));
+
+        let dir_content = v105::DirContentRecord::read_here(&mut bytes, &(true, 1))
             .unwrap_or_else(|err| panic!("could not read dir content record {}", err));
 
         assert_eq!(dir_content.name, Some(BZString::new("a").unwrap()), "dir_content.name");

@@ -21,7 +21,7 @@ pub fn write_struct<S: Pod, W: Write>(val: &S, mut writer: W) -> Result<()> {
 }
 
 
-pub trait Readable: Sized + fmt::Debug
+pub trait Readable: Sized
 where <Self as Readable>::ReadableArgs: Copy {
     type ReadableArgs = ();
 

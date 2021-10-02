@@ -389,7 +389,7 @@ impl Readable for DirContentRecord {
     type ReadableArgs = (bool, u32);
     fn read_here<R: Read + Seek>(mut reader: R, (has_name, file_count): &(bool, u32)) -> Result<DirContentRecord> {
         let name = if *has_name {
-            let n = BZString::read(&mut reader, &())?;
+            let n = BZString::read0(&mut reader)?;
             Some(n)
         } else {
             None
@@ -622,7 +622,7 @@ impl<T, AF, RDR> BsaWriter for V10XWriter<T, AF, RDR>
 where
     T: Versioned,
     AF: ToArchiveBitFlags,
-    RDR: From<DirRecord> + Into<DirRecord> + Writable + Sized + Copy
+    RDR: From<DirRecord> + Into<DirRecord> + Writable + Sized + Copy + fmt::Debug
 {
     type Options = V10XWriterOptions<AF>;
     fn write_bsa<DS, D, W>(opts: Self::Options, raw_dirs: DS, mut out: W) -> Result<()>

@@ -157,7 +157,7 @@ impl Writable for BZString {
         self.0.len() + 2 // length byte + chars + null
     }
     fn write_here<W: Write>(&self, mut out: W) -> Result<()> {
-        (self.0.len() as u8).write_here(&mut out)?;
+        (self.0.len() as u8 + 1).write_here(&mut out)?;
         write_many(self.0.bytes(), &mut out)?;
         (0 as u8).write_here(&mut out)
     }
