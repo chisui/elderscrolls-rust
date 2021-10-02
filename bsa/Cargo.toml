@@ -2,6 +2,14 @@
 name = "bsa"
 version = "0.1.0"
 edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "rust library for creating and extracting Bethesda Softworks Archives"
+homepage = "https://github.com/chisui/bsa"
+repository = "https://github.com/chisui/bsa"
+documentation = "https://github.com/chisui/bsa"
+readme = "../README.MD"
+keywords = ["bethesda", "skyrim", "fallout", "bsa", "archive"]
+categories = ["encoding", "development-tools", "compression", "games"]
 
 [lib]
 

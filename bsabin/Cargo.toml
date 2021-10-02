@@ -2,6 +2,14 @@
 name = "bsabin"
 version = "0.1.0"
 edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "cli for creating and extracting Bethesda Softworks Archives"
+homepage = "https://github.com/chisui/bsa"
+repository = "https://github.com/chisui/bsa"
+documentation = "https://github.com/chisui/bsa"
+readme = "../README.MD"
+keywords = ["bethesda", "skyrim", "fallout", "bsa", "archive"]
+categories = ["command-line-utilities", "encoding", "development-tools", "compression", "games"]
 
 [[bin]]
 name = "bsa"
