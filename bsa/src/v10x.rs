@@ -320,11 +320,11 @@ where
             .collect()
     }
 
-    fn extract<W: Write>(&mut self, file: BsaFile, mut writer: W) -> Result<()> {
+    fn extract<W: Write>(&mut self, file: &BsaFile, mut writer: W) -> Result<()> {
         self.reader.seek(SeekFrom::Start(file.offset))?;
 
         // skip name field
-        if self.header.has(AF::includes_file_names()) {
+        if self.header.has_any(&AF::embed_file_names()) {
             let name_len: u8 = read_struct(&mut self.reader)?;
             self.reader.seek(SeekFrom::Current(name_len as i64))?;
         }

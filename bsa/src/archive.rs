@@ -62,9 +62,10 @@ pub trait Bsa: fmt::Display + Sized {
 
     fn read_dirs(&mut self) -> Result<Vec<BsaDir>>;
 
-    fn extract<W: Write>(&mut self, file: BsaFile, writer: W) -> Result<()>;
+    fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> Result<()>;
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BsaDirSource<D> {
     pub name: String,
     pub files: Vec<BsaFileSource<D>>,
@@ -74,6 +75,7 @@ impl<D> BsaDirSource<D> {
         Self { name, files }
     }
 }
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BsaFileSource<D> {
     pub name: String,
     pub compressed: Option<bool>,

@@ -114,7 +114,7 @@ impl Cmd for Extract {
                 if matcher.matches(&file_path) {
                     println!("{}", file_path);
                     let mut out = open_output_file(&self.output, &dir.name, &file.name)?;
-                    bsa.extract(file, &mut out)?;
+                    bsa.extract(&file, &mut out)?;
                 }
             }
         }

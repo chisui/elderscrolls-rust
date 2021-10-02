@@ -84,6 +84,7 @@ pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;
 mod tests {
     use std::io::{Cursor, SeekFrom};
     use enumflags2::BitFlags;
+    use crate::bin::DataSource;
     use crate::archive::{FileId, BsaWriter, Bsa, BsaDirSource, BsaFileSource};
     use crate::version::{Version, Version10X};
     use crate::v105;
@@ -91,7 +92,7 @@ mod tests {
 
     #[test]
     fn writes_version() {
-        let mut bytes = some_bsa_bytes();
+        let mut bytes = bsa_bytes(some_bsa_dirs());
 
         let v = Version::read0(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read version {}", err));
@@ -100,7 +101,7 @@ mod tests {
 
     #[test]
     fn writes_header() {
-        let mut bytes = some_bsa_bytes();
+        let mut bytes = bsa_bytes(some_bsa_dirs());
 
         let header = v105::Header::read0(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
@@ -118,7 +119,7 @@ mod tests {
 
     #[test]
     fn writes_dir_records() {
-        let mut bytes = some_bsa_bytes();
+        let mut bytes = bsa_bytes(some_bsa_dirs());
 
         v105::Header::read0(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
@@ -133,7 +134,7 @@ mod tests {
 
     #[test]
     fn writes_dir_content_records() {
-        let mut bytes = some_bsa_bytes();
+        let mut bytes = bsa_bytes(some_bsa_dirs());
 
 
         let header = v105::Header::read0(&mut bytes)
@@ -157,7 +158,18 @@ mod tests {
 
     #[test]
     fn write_read_identity() {
-        let bytes = some_bsa_bytes();
+        check_write_read_identity(some_bsa_dirs())
+    }
+
+    #[test]
+    fn write_read_identity_compressed() {
+        let mut dirs = some_bsa_dirs();
+        dirs[0].files[0].compressed = Some(true);
+        check_write_read_identity(dirs)
+    }
+
+    fn check_write_read_identity(dirs: Vec<BsaDirSource<Vec<u8>>>) {
+        let bytes = bsa_bytes(dirs.clone());
         let mut bsa = v105::BsaArchive::open(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let in_dirs = bsa.read_dirs()
@@ -168,19 +180,24 @@ mod tests {
         assert_eq!(in_dirs[0].files.len(), 1, "in_dirs[0].files.len()");
         assert_eq!(in_dirs[0].name, FileId::String("a".to_owned()), "in_dirs[0].name");
         assert_eq!(in_dirs[0].files[0].name, FileId::String("b".to_owned()), "in_dirs[0].files[0].name");
+
+        let mut data = Vec::<u8>::new();
+        bsa.extract(&in_dirs[0].files[0], &mut data)
+            .unwrap_or_else(|err| panic!("could not extract data {}", err));
+        assert_eq!(dirs[0].files[0].data, data, "file data");
     }
 
     fn some_bsa_dirs() -> Vec<BsaDirSource<Vec<u8>>> {
         vec![
             BsaDirSource::new("a".to_owned(), vec![
-                    BsaFileSource::new("b".to_owned(), vec![0,0,0,0])
+                    BsaFileSource::new("b".to_owned(), vec![1,2,3,4])
             ])
         ]
     }
 
-    fn some_bsa_bytes() -> Cursor<Vec<u8>> {
+    fn bsa_bytes<D: DataSource>(dirs: Vec<BsaDirSource<D>>) -> Cursor<Vec<u8>> {
         let mut out = Cursor::new(Vec::<u8>::new());
-        v105::BsaWriter::write_bsa(BsaWriterOptions::default(), some_bsa_dirs(), &mut out)
+        v105::BsaWriter::write_bsa(BsaWriterOptions::default(), dirs, &mut out)
             .unwrap_or_else(|err| panic!("could not write bsa {}", err));
         Cursor::new(out.into_inner())
     }

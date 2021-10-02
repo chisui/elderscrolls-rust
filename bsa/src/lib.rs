@@ -98,7 +98,7 @@ impl<R: Read + Seek> Bsa for BsaArchive<R> {
         }
     }
 
-    fn extract<W: Write>(&mut self, file: BsaFile, writer: W) -> Result<()> {
+    fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> Result<()> {
         match self {
             BsaArchive::V103(bsa) => bsa.extract(file, writer),
             BsaArchive::V104(bsa) => bsa.extract(file, writer),
