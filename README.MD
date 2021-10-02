@@ -1,3 +1,7 @@
+[![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
+[![LICENSE](https://img.shields.io/badge/license-apache-blue.svg)](LICENSE-APACHE)
+[![Crates.io Version](https://img.shields.io/crates/v/bsalib.svg)](https://crates.io/crates/bsalib)
+[![Crates.io Version](https://img.shields.io/crates/v/bsabin.svg)](https://crates.io/crates/bsabin)
 
 # BSA
 
