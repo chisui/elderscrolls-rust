@@ -54,6 +54,9 @@ pub struct Create {
 
     #[clap(short, long)]
     pub compress: bool,
+    
+    #[clap(long="embed-file-names")]
+    pub embed_file_names: bool,
 
     #[clap(short, long, parse(from_os_str))]
     pub output: Option<PathBuf>,

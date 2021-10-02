@@ -1,4 +1,6 @@
 use std::{
+    fs,
+    path::{Path, PathBuf},
     io::{Result, Write, Seek},
     fmt,
 };
@@ -93,4 +95,32 @@ pub trait BsaWriter {
         D: DataSource,
         DS: IntoIterator<Item = BsaDirSource<D>>,
         W: Write + Seek;
+}
+
+pub fn list_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<BsaDirSource<PathBuf>>> {
+    let mut stack = vec![PathBuf::new()];
+    let mut res = vec![];
+    while let Some(path) = stack.pop() {
+        let mut files = vec![];
+        let cwd: PathBuf = dir.as_ref().join(&path);
+        for e in fs::read_dir(cwd)? {
+            let entry = e?;
+            if entry.file_type()?.is_dir() {
+                stack.push([&path, &PathBuf::from(entry.file_name())].iter().collect());
+            } else {
+                files.push(BsaFileSource {
+                    name: entry.file_name().into_string().unwrap(),
+                    compressed: None,
+                    data: entry.path(),
+                });
+            }
+        }
+        if !files.is_empty() {
+            res.push(BsaDirSource {
+                name: path.into_os_string().into_string().unwrap(), 
+                files
+            });
+        }
+    }
+    Ok(res)
 }

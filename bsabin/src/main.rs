@@ -1,7 +1,7 @@
 use std::{
     io::{BufReader, Result, Error, ErrorKind},
     fs::{self, File},
-    path::{Path, PathBuf},
+    path::PathBuf,
     fmt,
 };
 use clap::Clap;
@@ -12,7 +12,7 @@ use bsa::{
     self,
     v105,
     {BsaArchive, BsaHeader},
-    archive::{Bsa, FileId, BsaDirSource, BsaFileSource, BsaWriter},
+    archive::{self, Bsa, FileId, BsaWriter},
 };
 mod cli;
 use crate::cli::{Cmds, Info, List, Extract, Create};
@@ -162,40 +162,17 @@ impl Cmd for Create {
         if self.compress {
             opts.archive_flags |= v105::ArchiveFlag::CompressedArchive;
         }
+
+        if self.embed_file_names {
+            opts.archive_flags |= v105::ArchiveFlag::EmbedFileNames;
+        }
         
-        let dirs = list_dir(&self.file)?;
+        let dirs = archive::list_dir(&self.file)?;
         let file = File::create(output)?;
         v105::BsaWriter::write_bsa(opts, dirs, file)
     }
 }
 
-fn list_dir(dir: &Path) -> Result<Vec<BsaDirSource<PathBuf>>> {
-    let mut stack = vec![PathBuf::new()];
-    let mut res = vec![];
-    while let Some(path) = stack.pop() {
-        let mut files = vec![];
-        let cwd: PathBuf = [dir, &path].iter().collect();
-        for e in fs::read_dir(cwd)? {
-            let entry = e?;
-            if entry.file_type()?.is_dir() {
-                stack.push([&path, &PathBuf::from(entry.file_name())].iter().collect());
-            } else {
-                files.push(BsaFileSource {
-                    name: entry.file_name().into_string().unwrap(),
-                    compressed: None,
-                    data: entry.path(),
-                });
-            }
-        }
-        if !files.is_empty() {
-            res.push(BsaDirSource {
-                name: path.into_os_string().into_string().unwrap(), 
-                files
-            });
-        }
-    }
-    Ok(res)
-}
 
 struct Sparse<A>(A);
 
