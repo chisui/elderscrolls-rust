@@ -5,6 +5,7 @@ use std::mem::size_of;
 use std::fmt;
 use bytemuck::Pod;
 
+
 pub fn read_struct<S: Pod, R: Read>(mut reader: R) -> Result<S> {
     let mut val = S::zeroed();
     let slice = bytemuck::bytes_of_mut(&mut val);

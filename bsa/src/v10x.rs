@@ -479,57 +479,53 @@ where
 
     fn write_dir_records<W, D>(dirs: &Vec<BsaDirSource<D>>, mut out: W) -> Result<Vec<Positioned<RDR>>>
     where W: Write + Seek {
-        let mut dir_records = Vec::new();
-        for dir in dirs {
-            let dir_record = Self::write_dir_record(dir, &mut out)?;
-            dir_records.push(dir_record);
-        }
-        Ok(dir_records)
+        dirs.iter()
+            .map(|dir| Self::write_dir_record(dir, &mut out))
+            .collect()
     }
 
     fn write_dir_content_record<W, D>(opts: V10XWriterOptions<AF>, dir: &BsaDirSource<D>, out: W) -> Result<Positioned<DirContentRecord>>
     where W: Write + Seek {
-        Positioned::new(DirContentRecord {
-            name: if opts.has(AF::includes_dir_names()) {
-                let s = BZString::new(dir.name.to_lowercase())?;
-                Some(s)
-            } else {
-                None
-            },
-            files: dir.files.iter()
-                .map(|file| FileRecord {
-                    name_hash: hash_v10x(&file.name),
-                    size: if file.compressed == Some(!opts.has(AF::is_compressed_by_default())) {
-                        0x40000000
-                    } else {
-                        0
-                    },
-                    offset: 0,
-                })
-                .collect(),
-        }, out)
+        let name = if opts.has(AF::includes_dir_names()) {
+            let s = BZString::new(dir.name.to_lowercase())?;
+            Some(s)
+        } else {
+            None
+        };
+        let files = dir.files.iter()
+            .map(|file| FileRecord {
+                name_hash: hash_v10x(&file.name),
+                size: if file.compressed == Some(!opts.has(AF::is_compressed_by_default())) {
+                    0x40000000
+                } else {
+                    0
+                },
+                offset: 0,
+            })
+            .collect();
+        Positioned::new(DirContentRecord { name, files }, out)
     }
 
     fn write_dir_content_records<W, D>(
         opts: V10XWriterOptions<AF>,
         dirs: &Vec<BsaDirSource<D>>,
         dir_records: &mut Vec<Positioned<RDR>>,
-        file_names_size: u32,
+        total_file_name_length: u32,
         mut out: W,
     ) -> Result<Vec<Positioned<DirContentRecord>>>
     where W: Write + Seek {
-        let mut dir_content_records = Vec::new();
-        for (dir, mut pdr) in dirs.iter().zip(dir_records) {
-            let fcr = Self::write_dir_content_record(opts, dir, &mut out)?;
+        dirs.iter().zip(dir_records)
+            .map(|(dir, mut pdr)| {
+                let fcr = Self::write_dir_content_record(opts, dir, &mut out)?;
 
-            let mut dr: DirRecord = pdr.data.into();
-            dr.offset = fcr.position as u32 + file_names_size;
-            pdr.data = RDR::from(dr);
-            pdr.update(&mut out)?;
-            
-            dir_content_records.push(fcr);
-        }
-        Ok(dir_content_records)
+                let mut dr: DirRecord = pdr.data.into();
+                dr.offset = fcr.position as u32 + total_file_name_length;
+                pdr.data = RDR::from(dr);
+                pdr.update(&mut out)?;
+                
+                Ok(fcr)
+            })
+            .collect()
     }
 
     fn write_embeded_file_name<W>(dir: &String, file: &String, out: W) -> Result<()>
