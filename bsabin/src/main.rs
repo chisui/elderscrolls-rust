@@ -158,7 +158,10 @@ impl Cmd for Create {
 
         check_exists(&output)?;
 
-        let opts = v105::BsaWriterOptions::default();
+        let mut opts = v105::BsaWriterOptions::default();
+        if self.compress {
+            opts.archive_flags |= v105::ArchiveFlag::CompressedArchive;
+        }
         
         let dirs = list_dir(&self.file)?;
         let file = File::create(output)?;

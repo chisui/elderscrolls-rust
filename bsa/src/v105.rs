@@ -70,6 +70,7 @@ impl Versioned for V105T {
 
     fn compress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
         let mut encoder = lz4::EncoderBuilder::new()
+            .auto_flush(true)
             .build(&mut writer)?;
         copy(&mut reader, &mut encoder)
     }
@@ -157,18 +158,34 @@ mod tests {
     }
 
     #[test]
-    fn write_read_identity() {
-        check_write_read_identity(some_bsa_dirs())
+    fn write_read_identity_bsa() {
+        check_write_read_identity_bsa(some_bsa_dirs())
     }
 
     #[test]
-    fn write_read_identity_compressed() {
+    fn write_read_identity_bsa_compressed() {
         let mut dirs = some_bsa_dirs();
         dirs[0].files[0].compressed = Some(true);
-        check_write_read_identity(dirs)
+        check_write_read_identity_bsa(dirs)
     }
 
-    fn check_write_read_identity(dirs: Vec<BsaDirSource<Vec<u8>>>) {
+    #[test]
+    fn write_read_identity_v105_compession() {
+        let mut out = Cursor::new(Vec::<u8>::new());
+        let expected: Vec<u8> = vec![1,2,3,4];
+      
+        v105::V105T::compress(Cursor::new(expected.clone()), &mut out)
+            .unwrap_or_else(|err| panic!("could not compress data {}", err));
+            
+        let mut input = Cursor::new(out.into_inner());
+        let mut actual = Vec::new();
+        v105::V105T::uncompress(&mut input,&mut actual)
+            .unwrap_or_else(|err| panic!("could not uncompress data {}", err));
+
+        assert_eq!(expected, actual, "compressed data");
+    }
+
+    fn check_write_read_identity_bsa(dirs: Vec<BsaDirSource<Vec<u8>>>) {
         let bytes = bsa_bytes(dirs.clone());
         let mut bsa = v105::BsaArchive::open(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));

@@ -52,6 +52,9 @@ pub struct Create {
     #[clap()]
     pub version: Version,
 
+    #[clap(short, long)]
+    pub compress: bool,
+
     #[clap(short, long, parse(from_os_str))]
     pub output: Option<PathBuf>,
     

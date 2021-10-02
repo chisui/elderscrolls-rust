@@ -269,7 +269,7 @@ where
                 .unwrap_or(FileId::Hash(file.name_hash)),
             compressed,
             offset: file.offset as u64,
-            size: file.size,
+            size: file.real_size(),
         }
     }
 }
@@ -330,8 +330,11 @@ where
         }
     
         if file.compressed {
+            let pos = self.reader.stream_position()?;
             // skip uncompressed size field
-            self.reader.seek(SeekFrom::Current(4))?;
+            let orig_size = u32::read_here0(&mut self.reader)?;
+
+            println!("read  compressed file at: {}. orig: {}, compressed: {}", pos, orig_size, file.size);
     
             let sub_reader = (&mut self.reader).take(file.size as u64);
             T::uncompress(sub_reader, writer)?;
@@ -369,6 +372,11 @@ pub struct FileRecord {
 impl FileRecord {
     pub fn is_compression_bit_set(&self) -> bool {
         (self.size & 0x40000000) == 0x40000000
+    }
+
+    pub fn real_size(&self) -> u32 {
+        let bit_mask = 0xffffffff ^ 0x40000000;
+        self.size & bit_mask
     }
 }
 impl Readable for FileRecord {}
@@ -552,12 +560,15 @@ where
         }
         let mut data_source = file.data.open()?;
         if file.compressed.unwrap_or(is_compressed_by_default) {
-
             let mut size_orig: Positioned<u32> = Positioned::new_empty(&mut out)?;
             size_orig.data = T::compress(data_source, &mut out)? as u32;
             size_orig.update(&mut out)?;
-            
-            Ok(out.stream_position()? - size_orig.position)
+               
+            let compressed_size = out.stream_position()? - size_orig.position;
+
+            println!("wrote compressed file at: {}. orig: {}, compressed: {}", size_orig.position, size_orig.data, compressed_size);
+
+            Ok(compressed_size)
         } else {
             copy(&mut data_source, &mut out)
         }
