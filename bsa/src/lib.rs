@@ -32,17 +32,17 @@ pub use {
 struct UnsupportedVersion(pub Version);
 
 
-pub enum BsaHeader {
+pub enum SomeBsaHeader {
     V103(v103::Header),
     V104(v104::Header),
     V105(v105::Header),
 }
-impl fmt::Display for BsaHeader {
+impl fmt::Display for SomeBsaHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BsaHeader::V103(header) => header.fmt(f),
-            BsaHeader::V104(header) => header.fmt(f),
-            BsaHeader::V105(header) => header.fmt(f),
+            SomeBsaHeader::V103(header) => header.fmt(f),
+            SomeBsaHeader::V104(header) => header.fmt(f),
+            SomeBsaHeader::V105(header) => header.fmt(f),
         }
     }
 }
@@ -77,7 +77,7 @@ impl<R: Read + Seek> SomeBsaReader<R> {
     }
 }
 impl<R: Read + Seek> archive::BsaReader for SomeBsaReader<R> {
-    type Header = BsaHeader;
+    type Header = SomeBsaHeader;
 
     fn version(&self) -> Version {
         match self {
@@ -89,9 +89,9 @@ impl<R: Read + Seek> archive::BsaReader for SomeBsaReader<R> {
 
     fn header(&self) -> Self::Header {
         match self {
-            SomeBsaReader::V103(bsa) => BsaHeader::V103(bsa.header()),
-            SomeBsaReader::V104(bsa) => BsaHeader::V104(bsa.header()),
-            SomeBsaReader::V105(bsa) => BsaHeader::V105(bsa.header()),
+            SomeBsaReader::V103(bsa) => SomeBsaHeader::V103(bsa.header()),
+            SomeBsaReader::V104(bsa) => SomeBsaHeader::V104(bsa.header()),
+            SomeBsaReader::V105(bsa) => SomeBsaHeader::V105(bsa.header()),
         }
     }
 

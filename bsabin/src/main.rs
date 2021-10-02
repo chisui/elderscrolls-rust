@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use bsa::{
     self,
-    {SomeBsaReader, BsaHeader},
+    {SomeBsaReader, SomeBsaHeader},
     archive::{self, BsaReader, BsaWriter, FileId},
     v105,
 };
@@ -45,9 +45,9 @@ impl Cmd for Info {
             println!("{}", bsa.header());
         } else {
             match bsa.header() {
-                BsaHeader::V103(h) => println!("{}", Sparse(h)),
-                BsaHeader::V104(h) => println!("{}", Sparse(h)),
-                BsaHeader::V105(h) => println!("{}", Sparse(h)),
+                SomeBsaHeader::V103(h) => println!("{}", Sparse(h)),
+                SomeBsaHeader::V104(h) => println!("{}", Sparse(h)),
+                SomeBsaHeader::V105(h) => println!("{}", Sparse(h)),
             }
         }
         Ok(())
