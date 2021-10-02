@@ -1,8 +1,9 @@
-use std::fmt;
-use std::io::{self, Read, Write, Seek};
-use std::convert::TryFrom;
-use std::mem::size_of;
-
+use std::{
+    fmt,
+    io::{self, Read, Write, Seek},
+    convert::TryFrom,
+    mem::size_of,
+};
 use thiserror::Error;
 
 use super::bin;

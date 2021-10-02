@@ -1,11 +1,16 @@
-use std::{fmt, str};
-use std::io::{self, Read, Write, Seek, Result};
-use std::mem::size_of;
+use std::{
+    fmt,
+    str,
+    io::{self, Read, Write, Seek, Result},
+    mem::size_of,
+};
 
 use thiserror::Error;
 
-use super::bin;
-use super::magicnumber::MagicNumber;
+use super::{
+    bin,
+    magicnumber::MagicNumber,
+};
 
 #[derive(Debug, Error)]
 pub enum Unknown {

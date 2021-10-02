@@ -1,17 +1,21 @@
-use std::io::{Read, Seek, SeekFrom, Result, Write, copy};
-use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::mem::size_of;
-use std::str::{self, FromStr};
-use std::fmt;
+use std::{
+    io::{Read, Seek, SeekFrom, Result, Write, copy},
+    collections::HashMap,
+    marker::PhantomData,
+    mem::size_of,
+    str::{self, FromStr},
+    fmt,
+};
 use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
-use super::bin::{self, read_struct, Readable, Writable, Positioned, DataSource};
-use super::hash::{Hash, hash_v10x};
-use super::version::{Version, Version10X};
-use super::magicnumber::MagicNumber;
-use super::archive::{Bsa, BsaDir, BsaFile, FileId, BsaDirSource, BsaFileSource, BsaWriter};
+use super::{
+    bin::{self, read_struct, Readable, Writable, Positioned, DataSource},
+    hash::{Hash, hash_v10x},
+    version::{Version, Version10X},
+    magicnumber::MagicNumber,
+    archive::{Bsa, BsaDir, BsaFile, FileId, BsaDirSource, BsaFileSource, BsaWriter},
+};
 pub use super::str::{BZString, BString, ZString};
 
 

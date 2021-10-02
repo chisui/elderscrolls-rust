@@ -1,6 +1,8 @@
-use std::io::{Read, Write, Seek, SeekFrom, Result, Error, ErrorKind};
-use std::str::{self, FromStr};
-use std::convert::TryFrom;
+use std::{
+    io::{Read, Write, Seek, SeekFrom, Result, Error, ErrorKind},
+    str::{self, FromStr},
+    convert::TryFrom,
+};
 use thiserror::Error;
 use macro_attr_2018::macro_attr;
 use newtype_derive_2018::*;

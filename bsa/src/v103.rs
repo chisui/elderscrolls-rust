@@ -1,20 +1,26 @@
-use std::io::{Read, Write, Result, copy};
-use std::str;
-use std::fmt;
+use std::{
+    io::{Read, Write, Result, copy},
+    str,
+    fmt,
+};
 use enumflags2::{bitflags, BitFlags};
 use libflate::zlib;
 
-use super::version::{Version, Version10X};
-use super::v10x::{
-    V10XArchive,
-    V10XWriter,
-    V10XWriterOptions,
-    ToArchiveBitFlags,
-    Versioned,
-    DirRecord
+use super::{
+    version::{Version, Version10X},
+    v10x::{
+        V10XArchive,
+        V10XWriter,
+        V10XWriterOptions,
+        ToArchiveBitFlags,
+        Versioned,
+        DirRecord
+    },
 };
-pub use super::v10x::V10XHeader;
-pub use super::str::BZString;
+pub use super::{
+    v10x::V10XHeader,
+    str::BZString,
+};
 
 
 #[bitflags]

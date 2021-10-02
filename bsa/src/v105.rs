@@ -1,15 +1,18 @@
-use std::io::{Read, Write, Seek, Result, copy};
-use std::fmt;
+use std::{
+    io::{Read, Write, Seek, Result, copy},
+    fmt,
+};
 use bytemuck::{Zeroable, Pod};
 
 
-pub use super::bin::{read_struct, write_struct, Readable, Writable};
-pub use super::archive::{Bsa};
-pub use super::version::{Version, Version10X};
-pub use super::hash::{hash_v10x, Hash};
-pub use super::v10x::{V10XArchive, V10XWriter, V10XWriterOptions, Versioned, DirContentRecord};
-pub use super::v10x;
-pub use super::v104::{ArchiveFlag, Header, BZString};
+pub use super::{
+    bin::{read_struct, write_struct, Readable, Writable},
+    archive::Bsa,
+    version::{Version, Version10X},
+    hash::{hash_v10x, Hash},
+    v10x::{self, V10XArchive, V10XWriter, V10XWriterOptions, Versioned, DirContentRecord},
+    v104::{ArchiveFlag, Header, BZString},
+};
 
 
 #[repr(C)]
@@ -79,7 +82,6 @@ pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;
 
 #[cfg(test)]
 mod tests {
-    use std::mem::size_of;
     use std::io::{Cursor, SeekFrom};
     use enumflags2::BitFlags;
     use crate::archive::{FileId, BsaWriter, Bsa, BsaDirSource, BsaFileSource};

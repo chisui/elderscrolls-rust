@@ -1,16 +1,19 @@
-use std::io::{BufReader, Result, Error, ErrorKind};
-use std::fs::{self, File};
-use std::path::{Path, PathBuf};
-use std::fmt;
+use std::{
+    io::{BufReader, Result, Error, ErrorKind},
+    fs::{self, File},
+    path::{Path, PathBuf},
+    fmt,
+};
 use clap::Clap;
 use glob::{Pattern, MatchOptions};
 use thiserror::Error;
 
-use bsa;
-use bsa::v105;
-use bsa::{BsaArchive, BsaHeader};
-use bsa::archive::{Bsa, FileId, BsaDirSource, BsaFileSource, BsaWriter};
-
+use bsa::{
+    self,
+    v105,
+    {BsaArchive, BsaHeader},
+    archive::{Bsa, FileId, BsaDirSource, BsaFileSource, BsaWriter},
+};
 mod cli;
 use crate::cli::{Cmds, Info, List, Extract, Create};
 

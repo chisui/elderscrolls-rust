@@ -1,20 +1,23 @@
-use std::io::{Read, Write, Result};
-use std::str;
-use std::fmt;
+use std::{
+    io::{Read, Write, Result},
+    str,
+    fmt,
+};
 use enumflags2::{bitflags, BitFlags};
 
-use super::version::{Version, Version10X};
-use super::v10x::{
-    V10XArchive,
-    V10XHeader,
-    V10XWriter,
-    V10XWriterOptions,
-    DirRecord,
-    ToArchiveBitFlags,
-    Versioned,
+pub use super::{
+    version::{Version, Version10X},
+    v10x::{
+        V10XArchive,
+        V10XHeader,
+        V10XWriter,
+        V10XWriterOptions,
+        DirRecord,
+        ToArchiveBitFlags,
+        Versioned,
+    },
+    v103::{self, BZString},
 };
-use super::v103;
-pub use super::v103::BZString;
 
 
 #[bitflags]

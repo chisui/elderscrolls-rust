@@ -12,8 +12,10 @@ pub mod v103;
 pub mod v104;
 pub mod v105;
 
-use std::io::{Read, Seek, Write, Result, Error, ErrorKind};
-use std::fmt;
+use std::{
+    io::{Read, Seek, Write, Result, Error, ErrorKind},
+    fmt,
+};
 use thiserror::Error;
 use archive::{Bsa, BsaDir, BsaFile};
 use bin::Readable;

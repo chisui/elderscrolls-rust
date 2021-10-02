@@ -1,9 +1,13 @@
-use std::io::{Read, Seek, Result};
-use std::mem::size_of;
+use std::{
+    io::{Read, Seek, Result},
+    mem::size_of,
+};
 use bytemuck::{Pod, Zeroable};
 
-use super::bin::{read_struct, Readable};
-use super::magicnumber::MagicNumber;
+use super::{
+    bin::{read_struct, Readable},
+    magicnumber::MagicNumber,
+};
 pub use super::str::{BZString, ZString};
 
 

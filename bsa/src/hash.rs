@@ -1,10 +1,11 @@
-use std::io::{Read, Result};
-use std::fmt;
-use std::hash;
+use std::{
+    io::{Read, Result},
+    fmt,
+    hash,
+};
 use bytemuck::{Zeroable, Pod};
 
-use super::bin;
-use super::bin::concat_bytes;
+use super::bin::{self, concat_bytes};
 
 
 #[repr(C)]

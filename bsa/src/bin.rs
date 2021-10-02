@@ -1,8 +1,10 @@
-use std::io::{Read, Write, Seek, SeekFrom, Result, Cursor};
-use std::path;
-use std::fs;
-use std::mem::size_of;
-use std::fmt;
+use std::{
+    io::{Read, Write, Seek, SeekFrom, Result, Cursor},
+    path,
+    fs,
+    mem::size_of,
+    fmt,
+};
 use bytemuck::Pod;
 
 

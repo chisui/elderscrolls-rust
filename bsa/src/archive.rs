@@ -1,9 +1,12 @@
-use std::io::{Result, Write, Seek};
-use std::fmt;
-
-use super::hash::Hash;
-use super::version::Version;
-use super::bin::DataSource;
+use std::{
+    io::{Result, Write, Seek},
+    fmt,
+};
+use super::{
+    hash::Hash,
+    version::Version,
+    bin::DataSource,
+};
 
 
 #[derive(Debug, PartialEq, Eq)]
