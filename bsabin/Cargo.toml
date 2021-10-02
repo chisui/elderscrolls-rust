@@ -10,6 +10,7 @@ documentation = "https://github.com/chisui/bsa"
 readme = "../README.MD"
 keywords = ["bethesda", "skyrim", "fallout", "bsa", "archive"]
 categories = ["command-line-utilities", "encoding", "development-tools", "compression", "games"]
+include = [ "../README.MD" ]
 
 [[bin]]
 name = "bsa"
