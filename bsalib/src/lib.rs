@@ -17,10 +17,11 @@ use std::{
     fmt,
 };
 use thiserror::Error;
+
 use archive::{BsaDir, BsaFile};
 use bin::Readable;
-use version::{Version, Version10X};
 
+pub use version::{Version, Version10X};
 pub use {
     v103::V103,
     v104::V104,

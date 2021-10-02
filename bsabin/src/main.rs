@@ -11,6 +11,7 @@ use thiserror::Error;
 use bsalib::{
     SomeBsaReader,
     SomeBsaHeader,
+    Version, Version10X,
     archive::{self, BsaReader, BsaWriter, FileId},
     v105,
     v10x::{ToArchiveBitFlags, V10XHeader},
@@ -76,32 +77,45 @@ impl Cmd for List {
 }
 
 
-struct FileMatcher {
-    patterns: Vec<Pattern>,
+enum FileMatcher {
+    Any,
+    Include(Vec<Pattern>),
+    Exclude(Vec<Pattern>),
 }
 impl FileMatcher {
-    fn new(patterns: &Vec<Pattern>) -> Self {
-        FileMatcher {
-            patterns: patterns.clone()
-        }
+    const MATCH_OPTS: MatchOptions = MatchOptions {
+        case_sensitive: false,
+        require_literal_leading_dot: false,
+        require_literal_separator: false,
+    };
+
+    fn new(include: &Vec<Pattern>, exclude: &Vec<Pattern>) -> Result<Self> {
+        Ok(match (include.is_empty(), exclude.is_empty()) {
+            (true, true) => FileMatcher::Any,
+            (false, true) => FileMatcher::Include(include.clone()),
+            (true, false) => FileMatcher::Exclude(exclude.clone()),
+            (false, false) => Err(Error::new(ErrorKind::InvalidInput, "--include can not be used in combination with --exclude"))?,
+        })
     }
 
     fn matches(&self, path: &String) -> bool {
-        let match_opt = MatchOptions {
-            case_sensitive: false,
-            require_literal_leading_dot: false,
-            require_literal_separator: false,
-        };
-        self.patterns.is_empty()
-            || self.patterns.iter().any(|p|
-                p.matches_with(&path, match_opt)
-                || path.starts_with(p.as_str()))
+        match self {
+            FileMatcher::Any => true,
+            FileMatcher::Include(patterns) => patterns.iter()
+                .any(|p| FileMatcher::match_single(p, path)),
+            FileMatcher::Exclude(patterns) => patterns.iter()
+                .all(|p| !FileMatcher::match_single(p, path)),
+        }
+    }
+
+    fn match_single(pattern: &Pattern, path: &String) -> bool {
+        pattern.matches_with(&path, FileMatcher::MATCH_OPTS) || path.starts_with(pattern.as_str())
     }
 }
 
 impl Cmd for Extract {
     fn exec(&self) -> Result<()> {
-        let matcher = FileMatcher::new(&self.paths);
+        let matcher = FileMatcher::new(&self.include, &self.exclude)?;
 
         let mut reader = File::open(&self.file)
             .map(BufReader::new)?;
@@ -148,6 +162,10 @@ struct FileAlreadyExists(PathBuf);
 
 impl Cmd for Create {
     fn exec(&self) -> Result<()> {
+        if Version::from(&self.version) != Version::V10X(Version10X::V105) {
+            return Err(Error::new(ErrorKind::Unsupported, "currently only v105 is supported"))
+        }
+
         let output = match self.output.as_ref() {
             Some(p) => p.clone(),
             None => {
@@ -173,7 +191,6 @@ impl Cmd for Create {
         v105::BsaWriter::write_bsa(opts, dirs, file)
     }
 }
-
 
 struct Sparse<A>(A);
 
