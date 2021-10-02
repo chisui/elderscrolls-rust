@@ -10,8 +10,8 @@ use newtype_derive_2018::*;
 use super::bin::{read_struct, Readable, Writable, write_many};
 
 #[derive(Debug, Error)]
-#[error("BSA Strings may only be 255 chars or less long since their length is stored in a byte")]
-pub struct StringToLong;
+#[error("BSA Strings may only be {0} chars or less long since their length is stored in a byte")]
+pub struct StringToLong(usize);
 
 macro_attr! {
     #[derive(Clone, Debug, PartialEq, Eq, NewtypeDeref!, NewtypeDerefMut!)]
@@ -31,7 +31,7 @@ impl TryFrom<Vec<u8>> for BString {
 impl FromStr for BString {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
-        check_len(s)?;
+        check_len(s, 255)?;
         Ok(Self(s.to_owned()))
     }
 }
@@ -45,7 +45,7 @@ impl Readable for BString {
     type ReadableArgs = ();
     fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> Result<Self> {
         let length: u8 = read_struct(&mut reader)?;
-        let mut chars: Vec<u8> = vec![0u8; (length - 1) as usize]; // length field includes null.
+        let mut chars: Vec<u8> = vec![0u8; length as usize];
         reader.read_exact(&mut chars)?;
         Self::try_from(chars)
     }
@@ -132,7 +132,7 @@ impl TryFrom<Vec<u8>> for BZString {
 impl FromStr for BZString {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
-        check_len(s)?;
+        check_len(s, 254)?;
         Ok(Self(s.to_owned()))
     }
 }
@@ -170,10 +170,82 @@ fn from_utf8_io<B: AsRef<[u8]>, S: FromStr<Err = Error>>(chars: B) -> Result<S> 
     }   
 }
 
-fn check_len(s: &str) -> Result<()> {
-    if s.len() > 255 {
-        Err(Error::new(ErrorKind::InvalidData, StringToLong))
+fn check_len(s: &str, max_len: usize) -> Result<()> {
+    if s.len() > max_len {
+        Err(Error::new(ErrorKind::InvalidData, StringToLong(max_len)))
     } else {
         Ok(())
+    }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Debug;
+    use super::*;
+ 
+    #[test]
+    fn write_read_identity_bstring_zero_len() {
+        write_read_identity(BString("".to_owned()));
+    }
+
+    #[test]
+    fn write_read_identity_zstring_zero_len() {
+        write_read_identity(ZString("".to_owned()));
+    }
+
+    #[test]
+    fn write_read_identity_bzstring_zero_len() {
+        write_read_identity(BZString("".to_owned()));
+    }
+
+    #[test]
+    fn write_read_identity_bstring_some_chars() {
+        write_read_identity(BString("asdf_basdf".to_owned()));
+    }
+
+    #[test]
+    fn write_read_identity_zstring_some_chars() {
+        write_read_identity(ZString("asdf_basdf".to_owned()));
+    }
+
+    #[test]
+    fn write_read_identity_bzstring_some_chars() {
+        write_read_identity(BZString("asdf_basdf".to_owned()));
+    }
+
+    #[test]
+    fn bstring_len_check() {
+        len_check::<BString>();
+    }
+
+    #[test]
+    fn bzstring_len_check() {
+        len_check::<BZString>();
+    }
+
+    fn len_check<S: FromStr<Err = Error> + Debug>() {
+        let s: String = (0..500).map(|_| 'a').collect();
+        match S::from_str(&s) {
+            Ok(s)  => panic!("expected error but got error but got {:?}", s),
+            Err(_) => {},
+        };
+    }
+
+    fn write_read_identity<A: Writable + Readable<ReadableArgs = ()> + Debug + Eq>(expected: A) {
+        let actual = write_read(&expected);
+
+        assert_eq!(expected, actual)
+    }
+
+    fn write_read<A: Writable + Readable<ReadableArgs = ()> + Debug>(val: &A) -> A {
+        use std::io::Cursor;
+        let mut out = Cursor::new(Vec::<u8>::new());
+        val.write_here(&mut out)
+            .unwrap_or_else(|err| panic!("could not write {:?}: {}", val, err));
+        let mut input = Cursor::new(out.into_inner());
+        A::read_here0(&mut input)
+            .unwrap_or_else(|err| panic!("could not read {:?}: {}", val, err))
     }
 }
