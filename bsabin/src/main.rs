@@ -10,9 +10,9 @@ use thiserror::Error;
 
 use bsa::{
     self,
+    {SomeBsaReader, BsaHeader},
+    archive::{self, BsaReader, BsaWriter, FileId},
     v105,
-    {BsaArchive, BsaHeader},
-    archive::{self, Bsa, FileId, BsaWriter},
 };
 mod cli;
 use crate::cli::{Cmds, Info, List, Extract, Create};
@@ -40,7 +40,7 @@ impl Cmd for Info {
     fn exec(&self) -> Result<()> {
         let mut reader = File::open(&self.file)
             .map(BufReader::new)?;
-        let bsa = BsaArchive::open(&mut reader)?;
+        let bsa = SomeBsaReader::open(&mut reader)?;
         if self.verbose {
             println!("{}", bsa.header());
         } else {
@@ -59,7 +59,7 @@ impl Cmd for List {
         let mut reader = File::open(&self.file)
             .map(BufReader::new)?;
 
-        let mut bsa = BsaArchive::open(&mut reader)?;
+        let mut bsa = SomeBsaReader::open(&mut reader)?;
         for dir in bsa.read_dirs()? {
             for file in dir.files {
                 if self.attributes {
@@ -105,7 +105,7 @@ impl Cmd for Extract {
         let mut reader = File::open(&self.file)
             .map(BufReader::new)?;
 
-        let mut bsa = BsaArchive::open(&mut reader)?;
+        let mut bsa = SomeBsaReader::open(&mut reader)?;
 
         let dirs = bsa.read_dirs()?;
         for dir in dirs {

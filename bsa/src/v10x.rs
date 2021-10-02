@@ -14,7 +14,7 @@ use super::{
     hash::{Hash, hash_v10x},
     version::{Version, Version10X},
     magicnumber::MagicNumber,
-    archive::{Bsa, BsaDir, BsaFile, FileId, BsaDirSource, BsaFileSource, BsaWriter},
+    archive::{BsaReader, BsaDir, BsaFile, FileId, BsaDirSource, BsaFileSource, BsaWriter},
 };
 pub use super::str::{BZString, BString, ZString};
 
@@ -190,21 +190,21 @@ impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for V10XHeader<AF> {
 }
 
 
-pub struct V10XArchive<R, T, AF: ToArchiveBitFlags, RDR> {
+pub struct V10XReader<R, T, AF: ToArchiveBitFlags, RDR> {
     pub reader: R,
     pub header: V10XHeader<AF>,
     phantom_t: PhantomData<T>,
     phantom_rdr: PhantomData<RDR>,
 }
-impl<R, T, AF, RDR> V10XArchive<R, T, AF, RDR>
+impl<R, T, AF, RDR> V10XReader<R, T, AF, RDR>
 where
     R: Read + Seek,
     T: Versioned,
     AF: ToArchiveBitFlags,
 {
-    pub fn open(mut reader: R) -> Result<Self> {
+    pub(crate) fn open(mut reader: R) -> Result<Self> {
         let header = V10XHeader::<AF>::read0(&mut reader)?;
-        Ok(V10XArchive {
+        Ok(V10XReader {
             reader,
             header,
             phantom_t: PhantomData,
@@ -282,7 +282,7 @@ pub trait Versioned {
 
     fn compress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64>;
 }
-impl<R, T, AF, RDR> fmt::Display for V10XArchive<R, T, AF, RDR>
+impl<R, T, AF, RDR> fmt::Display for V10XReader<R, T, AF, RDR>
 where
     T: Versioned,
     AF: ToArchiveBitFlags + fmt::Debug,
@@ -292,7 +292,7 @@ where
         self.header.fmt(f)
     }
 }
-impl<R, T, AF, RDR> Bsa for V10XArchive<R, T, AF, RDR>
+impl<R, T, AF, RDR> BsaReader for V10XReader<R, T, AF, RDR>
 where
     R: Read + Seek,
     T: Versioned,

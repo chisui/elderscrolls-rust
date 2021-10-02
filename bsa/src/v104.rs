@@ -1,14 +1,14 @@
 use std::{
-    io::{Read, Write, Result},
+    io::{Read, Seek, Write, Result},
     str,
     fmt,
 };
 use enumflags2::{bitflags, BitFlags};
 
-pub use super::{
+use super::{
     version::{Version, Version10X},
     v10x::{
-        V10XArchive,
+        V10XReader,
         V10XHeader,
         V10XWriter,
         V10XWriterOptions,
@@ -16,7 +16,7 @@ pub use super::{
         ToArchiveBitFlags,
         Versioned,
     },
-    v103::{self, BZString},
+    v103,
 };
 
 
@@ -65,22 +65,28 @@ impl ToArchiveBitFlags for ArchiveFlag {
 }
 
 pub type Header = V10XHeader<ArchiveFlag>;
-pub enum V104T {}
-pub type BsaArchive<R> = V10XArchive<R, V104T, ArchiveFlag, DirRecord>;
-impl Versioned for V104T {
+pub type BsaReader<R> = V10XReader<R, V104, ArchiveFlag, DirRecord>;
+pub enum V104 {}
+impl V104 {
+    pub fn open<R>(reader: R) -> Result<BsaReader<R>>
+    where R: Read + Seek {
+        BsaReader::open(reader)
+    }
+}
+impl Versioned for V104 {
     fn version() -> Version { Version::V10X(Version10X::V104) }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "BSA v104 file, format used by: TES V: Skyrim, Fallout 3 and Fallout: New Vegas")
     }
 
     fn uncompress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64> {
-        v103::V103T::uncompress(reader, writer)
+        v103::V103::uncompress(reader, writer)
     }
 
     fn compress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64> {
-        v103::V103T::compress(reader, writer)
+        v103::V103::compress(reader, writer)
     }
 }
 
-pub type BsaWriter = V10XWriter<V104T, ArchiveFlag, DirRecord>;
+pub type BsaWriter = V10XWriter<V104, ArchiveFlag, DirRecord>;
 pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;

@@ -1,5 +1,5 @@
 use std::{
-    io::{Read, Write, Result, copy},
+    io::{Read, Seek, Write, Result, copy},
     str,
     fmt,
 };
@@ -9,17 +9,14 @@ use libflate::zlib;
 use super::{
     version::{Version, Version10X},
     v10x::{
-        V10XArchive,
+        V10XReader,
+        V10XHeader,
         V10XWriter,
         V10XWriterOptions,
         ToArchiveBitFlags,
         Versioned,
         DirRecord
     },
-};
-pub use super::{
-    v10x::V10XHeader,
-    str::BZString,
 };
 
 
@@ -62,9 +59,15 @@ impl ToArchiveBitFlags for ArchiveFlag {
 }
 
 pub type Header = V10XHeader<ArchiveFlag>;
-pub enum V103T {}
-pub type BsaArchive<R> = V10XArchive<R, V103T, ArchiveFlag, DirRecord>;
-impl Versioned for V103T {
+pub enum V103 {}
+impl V103 {
+    pub fn open<R>(reader: R) -> Result<BsaReader<R>>
+    where R: Read + Seek {
+        BsaReader::open(reader)
+    }
+}
+pub type BsaReader<R> = V10XReader<R, V103, ArchiveFlag, DirRecord>;
+impl Versioned for V103 {
     fn version() -> Version { Version::V10X(Version10X::V103) }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "BSA v103 file, format used by: TES IV: Oblivion")
@@ -81,5 +84,5 @@ impl Versioned for V103T {
     }
 }
 
-pub type BsaWriter = V10XWriter<V103T, ArchiveFlag, DirRecord>;
+pub type BsaWriter = V10XWriter<V103, ArchiveFlag, DirRecord>;
 pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;

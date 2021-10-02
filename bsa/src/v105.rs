@@ -5,14 +5,13 @@ use std::{
 use bytemuck::{Zeroable, Pod};
 
 
-pub use super::{
+use super::{
     bin::{read_struct, write_struct, Readable, Writable},
-    archive::Bsa,
     version::{Version, Version10X},
-    hash::{hash_v10x, Hash},
-    v10x::{self, V10XArchive, V10XWriter, V10XWriterOptions, Versioned, DirContentRecord},
-    v104::{ArchiveFlag, Header, BZString},
+    hash::Hash,
+    v10x::{self, V10XReader, V10XWriter, V10XWriterOptions, Versioned},
 };
+pub use super::v104::{ArchiveFlag, Header};
 
 
 #[repr(C)]
@@ -56,8 +55,14 @@ impl From<v10x::DirRecord> for RawDirRecord {
     }
 }
 
-pub enum V105T{}
-impl Versioned for V105T {
+pub enum V105 {}
+impl V105 {
+    pub fn open<R>(reader: R) -> Result<BsaReader<R>>
+    where R: Read + Seek {
+        BsaReader::open(reader)
+    }
+}
+impl Versioned for V105 {
     fn version() -> Version { Version::V10X(Version10X::V105) }
     fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "BSA v105 file, format used by: TES V: Skyrim Special Edition")
@@ -76,8 +81,8 @@ impl Versioned for V105T {
     }
 }
 
-pub type BsaArchive<R> = V10XArchive<R, V105T, ArchiveFlag, RawDirRecord>;
-pub type BsaWriter = V10XWriter<V105T, ArchiveFlag, RawDirRecord>;
+pub type BsaReader<R> = V10XReader<R, V105, ArchiveFlag, RawDirRecord>;
+pub type BsaWriter = V10XWriter<V105, ArchiveFlag, RawDirRecord>;
 pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;
 
 
@@ -85,8 +90,10 @@ pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;
 mod tests {
     use std::io::{Cursor, SeekFrom};
     use enumflags2::BitFlags;
+    use crate::str::BZString;
+    use crate::hash::hash_v10x;
     use crate::bin::DataSource;
-    use crate::archive::{FileId, BsaWriter, Bsa, BsaDirSource, BsaFileSource};
+    use crate::archive::{FileId, BsaWriter, BsaReader, BsaDirSource, BsaFileSource};
     use crate::version::{Version, Version10X};
     use crate::v105;
     use super::*;
@@ -148,7 +155,7 @@ mod tests {
         bytes.seek(SeekFrom::Start(offset))
             .unwrap_or_else(|err| panic!("could not seek to offset {}", err));
 
-        let dir_content = v105::DirContentRecord::read_here(&mut bytes, &(true, 1))
+        let dir_content = v10x::DirContentRecord::read_here(&mut bytes, &(true, 1))
             .unwrap_or_else(|err| panic!("could not read dir content record {}", err));
 
         assert_eq!(dir_content.name, Some(BZString::new("a").unwrap()), "dir_content.name");
@@ -174,12 +181,12 @@ mod tests {
         let mut out = Cursor::new(Vec::<u8>::new());
         let expected: Vec<u8> = vec![1,2,3,4];
       
-        v105::V105T::compress(Cursor::new(expected.clone()), &mut out)
+        v105::V105::compress(Cursor::new(expected.clone()), &mut out)
             .unwrap_or_else(|err| panic!("could not compress data {}", err));
             
         let mut input = Cursor::new(out.into_inner());
         let mut actual = Vec::new();
-        v105::V105T::uncompress(&mut input,&mut actual)
+        v105::V105::uncompress(&mut input,&mut actual)
             .unwrap_or_else(|err| panic!("could not uncompress data {}", err));
 
         assert_eq!(expected, actual, "compressed data");
@@ -187,7 +194,7 @@ mod tests {
 
     fn check_write_read_identity_bsa(dirs: Vec<BsaDirSource<Vec<u8>>>) {
         let bytes = bsa_bytes(dirs.clone());
-        let mut bsa = v105::BsaArchive::open(bytes)
+        let mut bsa = v105::BsaReader::open(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let in_dirs = bsa.read_dirs()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));

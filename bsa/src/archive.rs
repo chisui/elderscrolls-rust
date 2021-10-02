@@ -55,7 +55,7 @@ impl HasName for BsaFile {
     }
 }
 
-pub trait Bsa: fmt::Display + Sized {
+pub trait BsaReader: fmt::Display + Sized {
     type Header;
 
     fn version(&self) -> Version;
