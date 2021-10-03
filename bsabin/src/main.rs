@@ -46,6 +46,7 @@ impl Cmd for Info {
             println!("{}", bsa.header());
         } else {
             match bsa.header() {
+                SomeBsaHeader::V001(h) => println!("{}", h),
                 SomeBsaHeader::V103(h) => println!("{}", Sparse(h)),
                 SomeBsaHeader::V104(h) => println!("{}", Sparse(h)),
                 SomeBsaHeader::V105(h) => println!("{}", Sparse(h)),

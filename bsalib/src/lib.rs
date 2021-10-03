@@ -29,6 +29,7 @@ use crate::{
 pub use crate::{
     hash::Hash,
     version::{Version, Version10X},
+    v001::V001,
     v103::V103,
     v104::V104,
     v105::V105,
@@ -40,6 +41,7 @@ struct UnsupportedVersion(pub Version);
 
 
 pub enum SomeBsaHeader {
+    V001(v001::Header),
     V103(v103::Header),
     V104(v104::Header),
     V105(v105::Header),
@@ -47,6 +49,7 @@ pub enum SomeBsaHeader {
 impl fmt::Display for SomeBsaHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            SomeBsaHeader::V001(header) => header.fmt(f),
             SomeBsaHeader::V103(header) => header.fmt(f),
             SomeBsaHeader::V104(header) => header.fmt(f),
             SomeBsaHeader::V105(header) => header.fmt(f),
@@ -55,6 +58,7 @@ impl fmt::Display for SomeBsaHeader {
 }
 
 pub enum SomeBsaReader<R> {
+    V001(v001::BsaReader<R>),
     V103(v103::BsaReader<R>),
     V104(v104::BsaReader<R>),
     V105(v105::BsaReader<R>),
@@ -63,6 +67,7 @@ impl<R> SomeBsaReader<R> {
 
     pub fn version(&self) -> Version {
         match self {
+            SomeBsaReader::V001(_) => Version::V001,
             SomeBsaReader::V103(_) => Version::V10X(Version10X::V103),
             SomeBsaReader::V104(_) => Version::V10X(Version10X::V104),
             SomeBsaReader::V105(_) => Version::V10X(Version10X::V105),
@@ -79,6 +84,8 @@ where P: AsRef<Path> {
 pub fn read<R>(mut reader: R) -> Result<SomeBsaReader<R>>
 where R: Read + Seek {
     match Version::read(&mut reader, &())? {
+        Version::V001 => v001::read(reader)
+            .map(SomeBsaReader::V001),
         Version::V10X(v) => match v {
             Version10X::V103 => v103::read(reader)
                 .map(SomeBsaReader::V103),
@@ -96,6 +103,7 @@ impl<R: Read + Seek> BsaReader for SomeBsaReader<R> {
 
     fn header(&self) -> Self::Header {
         match self {
+            SomeBsaReader::V001(bsa) => SomeBsaHeader::V001(bsa.header()),
             SomeBsaReader::V103(bsa) => SomeBsaHeader::V103(bsa.header()),
             SomeBsaReader::V104(bsa) => SomeBsaHeader::V104(bsa.header()),
             SomeBsaReader::V105(bsa) => SomeBsaHeader::V105(bsa.header()),
@@ -104,6 +112,7 @@ impl<R: Read + Seek> BsaReader for SomeBsaReader<R> {
 
     fn dirs(&mut self) -> Result<Vec<BsaDir>> {
         match self {
+            SomeBsaReader::V001(bsa) => bsa.dirs(),
             SomeBsaReader::V103(bsa) => bsa.dirs(),
             SomeBsaReader::V104(bsa) => bsa.dirs(),
             SomeBsaReader::V105(bsa) => bsa.dirs(),
@@ -112,6 +121,7 @@ impl<R: Read + Seek> BsaReader for SomeBsaReader<R> {
 
     fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> Result<()> {
         match self {
+            SomeBsaReader::V001(bsa) => bsa.extract(file, writer),
             SomeBsaReader::V103(bsa) => bsa.extract(file, writer),
             SomeBsaReader::V104(bsa) => bsa.extract(file, writer),
             SomeBsaReader::V105(bsa) => bsa.extract(file, writer),

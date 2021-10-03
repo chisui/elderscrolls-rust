@@ -3,6 +3,7 @@ use std::{
     mem::size_of,
     path::Path,
     fs::File,
+    fmt,
 };
 use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
@@ -26,8 +27,14 @@ pub struct CompressionNotSupported;
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
 pub struct Header {
     pub offset_hash_table: u32,
-    pub files_len: u32,
+    pub file_count: u32,
 }
+impl fmt::Display for Header {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "file_count: {}", self.file_count)
+    }
+}
+
 impl Readable for Header {
     fn offset(_: &()) -> Option<usize> {
         Some(size_of::<MagicNumber>())
@@ -71,17 +78,17 @@ pub struct BsaReader<R> {
 }
 impl<R: Read + Seek> BsaReader<R> {
     fn files(&mut self) -> Result<Vec<BsaFile>> {
-        let files_len = self.header.files_len as usize;
+        let file_count = self.header.file_count as usize;
         let offset_after_header = (size_of::<MagicNumber>() + size_of::<Header>()) as u64;
         self.reader.seek(SeekFrom::Start(offset_after_header))?;
         
-        let recs = FileRecord::read_many0(&mut self.reader, files_len)?;
-        let name_offsets = u32::read_many0(&mut self.reader, files_len)?;
+        let recs = FileRecord::read_many0(&mut self.reader, file_count)?;
+        let name_offsets = u32::read_many0(&mut self.reader, file_count)?;
         
         self.reader.seek(SeekFrom::Start(offset_after_header + self.header.offset_hash_table as u64))?;
-        let hashes = Hash::read_many0(&mut self.reader, files_len)?;
+        let hashes = Hash::read_many0(&mut self.reader, file_count)?;
 
-        let offset_names_start = offset_after_header + (files_len as u64 * (size_of::<FileRecord>() + size_of::<u32>()) as u64);
+        let offset_names_start = offset_after_header + (file_count as u64 * (size_of::<FileRecord>() + size_of::<u32>()) as u64);
 
         recs.iter().zip(name_offsets).zip(hashes)
             .map(|((rec, name_offset), hash)| {
@@ -175,7 +182,7 @@ impl write::BsaWriter for V001 {
         Version::V001.write_here(&mut out)?;
         Header {
             offset_hash_table,
-            files_len: files.len() as u32,
+            file_count: files.len() as u32,
         }.write_here(&mut out)?;
       
         let mut recs: Vec<Positioned<FileRecord>> = Vec::new();
@@ -239,7 +246,7 @@ mod tests {
             .unwrap_or_else(|err| panic!("could not read header {}", err));
 
         assert_eq!(header.offset_hash_table, 16, "offset_hash_table");
-        assert_eq!(header.files_len, 1, "files_len");
+        assert_eq!(header.file_count, 1, "file_count");
     }
 
     #[test]
