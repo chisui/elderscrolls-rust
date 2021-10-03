@@ -1,11 +1,12 @@
 use std::{
-    io::{Read, Result},
+    io::{Read, Write, Result},
+    mem::size_of,
     fmt,
     hash,
 };
 use bytemuck::{Zeroable, Pod};
 
-use super::bin::{self, concat_bytes};
+use super::bin::{self, concat_bytes, write_struct};
 
 
 #[repr(C)]
@@ -48,6 +49,12 @@ impl fmt::Display for Hash {
 impl bin::Readable for Hash {
     fn read_here<R: Read>(reader: R, _: &()) -> Result<Self> {
         bin::read_struct(reader)
+    }
+}
+impl bin::Writable for Hash {
+    fn size(&self) -> usize { size_of::<Hash>() }
+    fn write_here<W: Write>(&self, out: W) -> Result<()> {
+        write_struct(self, out)
     }
 }
 impl hash::Hash for Hash {
@@ -129,8 +136,8 @@ fn hash_sdbm(bytes: &[u8]) -> u32 {
     hash
 }
 
-const fn rot_right(value: u32, num_bits: u32) -> u32 {
-    value << (32 - num_bits) | value >> num_bits
+fn rot_right(value: u32, num_bits: u32) -> u32 {
+    value.wrapping_shl(32 - num_bits) | value. wrapping_shl(num_bits)
 }
 
 fn when<T: Default, F>(cond: bool, v: F) -> T 
