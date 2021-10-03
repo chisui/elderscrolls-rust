@@ -315,20 +315,17 @@ where
 
     fn extract<W: Write>(&mut self, file: &BsaFile, mut writer: W) -> Result<()> {
         self.reader.seek(SeekFrom::Start(file.offset))?;
-
+        
         // skip name field
         if self.header.has_any(&AF::embed_file_names()) {
             let name_len: u8 = read_struct(&mut self.reader)?;
             self.reader.seek(SeekFrom::Current(name_len as i64))?;
         }
-    
+        
         if file.compressed {
-            let pos = self.reader.stream_position()?;
             // skip uncompressed size field
-            let orig_size = u32::read_here0(&mut self.reader)?;
+            self.reader.seek(SeekFrom::Current(size_of::<u32>() as i64))?;
 
-            println!("read  compressed file at: {}. orig: {}, compressed: {}", pos, orig_size, file.size);
-    
             let sub_reader = (&mut self.reader).take(file.size as u64);
             T::uncompress(sub_reader, writer)?;
         } else {
@@ -556,12 +553,8 @@ where
             let mut size_orig: Positioned<u32> = Positioned::new_empty(&mut out)?;
             size_orig.data = T::compress(data_source, &mut out)? as u32;
             size_orig.update(&mut out)?;
-               
-            let compressed_size = out.stream_position()? - size_orig.position;
-
-            println!("wrote compressed file at: {}. orig: {}, compressed: {}", size_orig.position, size_orig.data, compressed_size);
-
-            Ok(compressed_size)
+            
+            Ok(out.stream_position()? - size_orig.position)
         } else {
             copy(&mut data_source, &mut out)
         }
