@@ -21,7 +21,7 @@ impl From<UnknownMagicNumber> for io::Error {
 #[repr(u32)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum MagicNumber {
-    V100 = bin::concat_bytes([0,0,1,0]),
+    V001 = bin::concat_bytes([0,0,1,0]),
     V10X = bin::concat_bytes(*b"BSA\0"),
     BTDX = bin::concat_bytes(*b"BTDX"),
 }
@@ -33,7 +33,7 @@ impl From<MagicNumber> for u32 {
 impl TryFrom<u32> for MagicNumber {
     type Error = UnknownMagicNumber;
     fn try_from(i: u32) -> Result<Self, UnknownMagicNumber> {
-        if i == MagicNumber::V100 as u32 { Ok(MagicNumber::V100) }
+        if i == MagicNumber::V001 as u32 { Ok(MagicNumber::V001) }
         else if i == MagicNumber::V10X as u32 { Ok(MagicNumber::V10X) }
         else if i == MagicNumber::BTDX as u32 { Ok(MagicNumber::BTDX) }
         else { Err(UnknownMagicNumber(i)) }
@@ -42,9 +42,9 @@ impl TryFrom<u32> for MagicNumber {
 impl bin::Readable for MagicNumber {
     fn offset(_: &()) -> Option<usize> { Some(0) }
     fn read_here<R: Read + Seek>(reader: R, _: &()) -> io::Result<MagicNumber> {
-        let nr = u32::read_here0(reader)?;
-        MagicNumber::try_from(nr)
-            .map_err(io::Error::from)
+        let raw = u32::read_here0(reader)?;
+        let nr = MagicNumber::try_from(raw)?;
+        Ok(nr)
     }
 }
 impl bin::Writable for MagicNumber {

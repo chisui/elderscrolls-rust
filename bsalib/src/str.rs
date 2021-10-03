@@ -51,7 +51,6 @@ impl ToString for BString {
     }
 }
 impl Readable for BString {
-    type ReadableArgs = ();
     fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> io::Result<Self> {
         let length: u8 = read_struct(&mut reader)?;
         let mut chars: Vec<u8> = vec![0u8; length as usize];
@@ -154,7 +153,6 @@ impl ToString for BZString {
     }
 }
 impl Readable for BZString {
-    type ReadableArgs = ();
     fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> io::Result<Self> {
         let length: u8 = read_struct(&mut reader)?;
         let mut chars: Vec<u8> = vec![0u8; (length - 1) as usize]; // length field includes null.
@@ -243,13 +241,13 @@ mod tests {
         };
     }
 
-    fn write_read_identity<A: Writable + Readable<ReadableArgs = ()> + Debug + Eq>(expected: A) {
+    fn write_read_identity<A: Writable + Readable<Arg = ()> + Debug + Eq>(expected: A) {
         let actual = write_read(&expected);
 
         assert_eq!(expected, actual)
     }
 
-    fn write_read<A: Writable + Readable<ReadableArgs = ()> + Debug>(val: &A) -> A {
+    fn write_read<A: Writable + Readable<Arg = ()> + Debug>(val: &A) -> A {
         use std::io::Cursor;
         let mut out = Cursor::new(Vec::<u8>::new());
         val.write_here(&mut out)

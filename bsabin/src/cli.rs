@@ -62,7 +62,7 @@ pub struct Extract {
 
 #[derive(ArgEnum, Debug, PartialEq, Clone)]
 pub enum VersionSlug {
-    V100, Tes3, Morrowind,
+    V001, Tes3, Morrowind,
     V103, Tes4, Oblivion,
     V104, Tes5, Skyrim, Fallout3, F3, Fnv, NewVegas, FalloutNewVegas,
     V105, Tes5se, SkyrimSE,
@@ -72,7 +72,7 @@ use VersionSlug::*;
 impl From<&VersionSlug> for Version {
     fn from(slug: &VersionSlug) -> Self {
         match slug {
-            V100 | Tes3 | Morrowind => Version::V100,
+            V001 | Tes3 | Morrowind => Version::V001,
             V103 | Tes4 | Oblivion => Version::V10X(Version10X::V103),
             V104 | Tes5 | Skyrim | Fallout3 | F3 | Fnv | NewVegas | FalloutNewVegas => Version::V10X(Version10X::V104),
             V105 | Tes5se | SkyrimSE => Version::V10X(Version10X::V105),

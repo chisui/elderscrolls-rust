@@ -2,70 +2,9 @@ use std::{
     fs,
     path::{Path, PathBuf},
     io::{Result, Write, Seek},
-    fmt,
 };
-use super::{
-    hash::Hash,
-    version::Version,
-    bin::DataSource,
-};
+use super::bin::DataSource;
 
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum FileId {
-    Hash(Hash),
-    String(String),
-}
-impl fmt::Display for FileId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FileId::Hash(h)                   => write!(f, "#{}", h),
-            FileId::String(s) => {
-                write!(f, "{}", s.replace('\\', "/"))
-            },
-        }
-    }
-}
-
-pub trait HasName {
-    fn name<'a>(&'a self) -> &'a FileId;
-}
-
-#[derive(Debug)]
-pub struct BsaDir {
-    pub name: FileId,
-    pub files: Vec<BsaFile>,
-}
-impl HasName for BsaDir {
-    fn name<'a>(&'a self) -> &'a FileId {
-        &self.name
-    }
-}
-
-#[derive(Debug)]
-pub struct BsaFile {
-    pub name: FileId,
-    pub compressed: bool,
-    pub offset: u64,
-    pub size: u32,
-}
-impl HasName for BsaFile {
-    fn name<'a>(&'a self) -> &'a FileId {
-        &self.name
-    }
-}
-
-pub trait BsaReader: fmt::Display + Sized {
-    type Header;
-
-    fn version(&self) -> Version;
-
-    fn header(&self) -> Self::Header;
-
-    fn read_dirs(&mut self) -> Result<Vec<BsaDir>>;
-
-    fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> Result<()>;
-}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BsaDirSource<D> {
@@ -102,7 +41,7 @@ pub fn list_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<BsaDirSource<PathBuf>>> {
     let mut res = vec![];
     while let Some(path) = stack.pop() {
         let mut files = vec![];
-        let cwd: PathBuf = dir.as_ref().join(&path);
+        let cwd = dir.as_ref().join(&path);
         for e in fs::read_dir(cwd)? {
             let entry = e?;
             if entry.file_type()?.is_dir() {

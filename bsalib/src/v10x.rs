@@ -9,14 +9,15 @@ use std::{
 use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
-use super::{
+use crate::{
     bin::{self, read_struct, Readable, Writable, Positioned, DataSource},
-    hash::{Hash, hash_v10x},
+    str::{BZString, BString, ZString},
+    Hash,
     version::{Version, Version10X},
     magicnumber::MagicNumber,
-    archive::{BsaReader, BsaDir, BsaFile, FileId, BsaDirSource, BsaFileSource, BsaWriter},
+    read::{BsaReader, BsaDir, BsaFile},
+    write::{BsaWriter, BsaDirSource, BsaFileSource},
 };
-pub use super::str::{BZString, BString, ZString};
 
 
 pub trait ToArchiveBitFlags: BitFlag + fmt::Debug {
@@ -193,6 +194,7 @@ impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for V10XHeader<AF> {
 pub struct V10XReader<R, T, AF: ToArchiveBitFlags, RDR> {
     pub reader: R,
     pub header: V10XHeader<AF>,
+    pub dirs: Option<Vec<BsaDir>>,
     phantom_t: PhantomData<T>,
     phantom_rdr: PhantomData<RDR>,
 }
@@ -202,11 +204,12 @@ where
     T: Versioned,
     AF: ToArchiveBitFlags,
 {
-    pub(crate) fn open(mut reader: R) -> Result<Self> {
+    pub(crate) fn read(mut reader: R) -> Result<Self> {
         let header = V10XHeader::<AF>::read0(&mut reader)?;
         Ok(V10XReader {
             reader,
             header,
+            dirs: None,
             phantom_t: PhantomData,
             phantom_rdr: PhantomData,
         })
@@ -224,7 +227,7 @@ where
     }
 
     fn offset_after_header(&self) -> usize {
-        T::version().size() + size_of::<RawHeader>()
+        size_of::<MagicNumber>() + size_of::<Version10X>() + size_of::<RawHeader>()
     }
 
     fn read_file_names(&mut self) -> Result<HashMap<Hash, ZString>> {
@@ -232,14 +235,14 @@ where
         Ok(if self.header.has(AF::includes_file_names()) {
             let names = ZString::read_many0(&mut self.reader, self.header.file_count as usize)?;
             names.iter()
-                .map(|name| (hash_v10x(name.to_string().as_str()), name.clone()))
+                .map(|name| (Hash::v10x(name.to_string().as_str()), name.clone()))
                 .collect()
         } else {
             HashMap::new()
         })
     }
 
-    fn read_dir(&mut self, file_names: &HashMap<Hash, ZString>, dir: DirRecord) -> Result<BsaDir> {
+    fn read_dir(&mut self, file_names: &HashMap<Hash, ZString>, dir: &DirRecord) -> Result<BsaDir> {
         let has_dir_name = self.header.has(AF::includes_file_names());
         
         self.reader.seek(SeekFrom::Start(
@@ -247,9 +250,9 @@ where
         let dir_content = DirContentRecord::read(&mut self.reader, &(has_dir_name, dir.file_count))?;
 
         Ok(BsaDir {
+            hash: dir.name_hash,
             name: dir_content.name
-                .map(|n| FileId::String(n.to_string()))
-                .unwrap_or(FileId::Hash(dir.name_hash)),
+                .map(|n| n.to_string()),
             files: dir_content.files.iter()
                 .map(|file| self.to_file(&file_names, file))
                 .collect(),
@@ -264,60 +267,50 @@ where
         };
 
         BsaFile {
+            hash: file.name_hash,
             name: file_names.get(&file.name_hash)
-                .map(|n| FileId::String(n.to_string()))
-                .unwrap_or(FileId::Hash(file.name_hash)),
+                .map(|n| n.to_string()),
             compressed,
             offset: file.offset as u64,
-            size: file.real_size(),
+            size: file.real_size() as usize,
         }
     }
 }
 pub trait Versioned {
-    fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result;
-
-    fn version() -> Version;
+    fn version() -> Version10X;
 
     fn uncompress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64>;
 
     fn compress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64>;
-}
-impl<R, T, AF, RDR> fmt::Display for V10XReader<R, T, AF, RDR>
-where
-    T: Versioned,
-    AF: ToArchiveBitFlags + fmt::Debug,
-{
-    fn fmt(&self, mut f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        T::fmt_version(&mut f)?;
-        self.header.fmt(f)
-    }
 }
 impl<R, T, AF, RDR> BsaReader for V10XReader<R, T, AF, RDR>
 where
     R: Read + Seek,
     T: Versioned,
     AF: ToArchiveBitFlags + fmt::Debug,
-    RDR: Readable<ReadableArgs=()> + Sized + Copy + fmt::Debug,
+    RDR: Readable<Arg = ()> + Sized + Copy + fmt::Debug,
     DirRecord: From<RDR>,
 {
     type Header = V10XHeader<AF>;
-
-    fn version(&self) -> Version {
-        T::version()
-    }
 
     fn header(&self) -> Self::Header {
         self.header
     }
 
-    fn read_dirs(&mut self) -> Result<Vec<BsaDir>> {
-        self.reader.seek(SeekFrom::Start(self.offset_after_header() as u64))?;
-        let raw_dirs = RDR::read_many0(&mut self.reader, self.header.dir_count as usize)?;
-        let file_names = self.read_file_names()?;
-        raw_dirs.iter()
-            .map(|dir| DirRecord::from(*dir) )
-            .map(|dir| self.read_dir(&file_names, dir))
-            .collect()
+    fn dirs(&mut self) -> Result<Vec<BsaDir>> {
+        if let Some(dirs) = &self.dirs {
+            Ok(dirs.to_vec())
+        } else {
+            self.reader.seek(SeekFrom::Start(self.offset_after_header() as u64))?;
+            let raw_dirs = RDR::read_many0(&mut self.reader, self.header.dir_count as usize)?;
+            let file_names = self.read_file_names()?;
+            let dirs = raw_dirs.iter()
+                .map(|dir| DirRecord::from(*dir) )
+                .map(|dir| self.read_dir(&file_names, &dir))
+                .collect::<Result<Vec<BsaDir>>>()?;
+            self.dirs = Some(dirs.to_vec());
+            Ok(dirs)
+        } 
     }
 
     fn extract<W: Write>(&mut self, file: &BsaFile, mut writer: W) -> Result<()> {
@@ -394,7 +387,7 @@ pub struct DirContentRecord {
     pub files: Vec<FileRecord>,
 }
 impl Readable for DirContentRecord {
-    type ReadableArgs = (bool, u32);
+    type Arg = (bool, u32);
     fn read_here<R: Read + Seek>(mut reader: R, (has_name, file_count): &(bool, u32)) -> Result<DirContentRecord> {
         let name = if *has_name {
             let n = BZString::read0(&mut reader)?;
@@ -437,7 +430,7 @@ where
     RDR: From<DirRecord> + Into<DirRecord> + Writable + Sized + Copy
 {
     fn write_version<W: Write>(mut out: W) -> Result<()> {
-        let version = T::version();
+        let version = Version::V10X(T::version());
         version.write_here(&mut out)
     }
 
@@ -482,7 +475,7 @@ where
     fn write_dir_record<W, D>(dir: &BsaDirSource<D>, out: W) -> Result<Positioned<RDR>>
     where W: Write + Seek {
         let rec = DirRecord {
-            name_hash: hash_v10x(&dir.name),
+            name_hash: Hash::v10x(&dir.name),
             file_count: dir.files.len() as u32,
             offset: 0,
         };
@@ -506,7 +499,7 @@ where
         };
         let files = dir.files.iter()
             .map(|file| FileRecord {
-                name_hash: hash_v10x(&file.name),
+                name_hash: Hash::v10x(&file.name),
                 size: if file.compressed == Some(!opts.has(AF::is_compressed_by_default())) {
                     0x40000000
                 } else {

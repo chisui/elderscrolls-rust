@@ -9,11 +9,24 @@ use super::bin::{self, concat_bytes};
 
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Zeroable, Pod)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Zeroable, Pod)]
 pub struct Hash {
     left: u32,
     right: u32,
 }
+impl Hash {
+    pub fn v001<S>(s: S) -> Self
+    where S: AsRef<str> {
+        hash_v001(sanitize(s).as_bytes())
+    }
+
+
+    pub fn v10x<S>(s: S) -> Self
+    where S: AsRef<str> {
+        hash_v10x(sanitize(s).as_bytes())
+    }
+}
+
 impl From<Hash> for u64 {
     fn from(h: Hash) -> u64 {
         (h.left as u64 >> 16) + h.right as u64
@@ -44,10 +57,15 @@ impl hash::Hash for Hash {
     }
 }
 
-pub fn hash_v10x(path: &str) -> Hash {
-    let lower = path.to_lowercase();
-    let right_sep = lower.replace('/', "\\");
-    let (root, ext) = hash_v10x_parts(right_sep.as_str());
+fn sanitize<S>(path: S) -> String
+where S: AsRef<str> {
+    path.as_ref()
+        .to_lowercase()
+        .replace('/', "\\")
+}
+
+fn hash_v10x(bytes: &[u8]) -> Hash {
+    let (root, ext) = hash_v10x_parts(bytes);
 
     Hash {
         left: concat_bytes([
@@ -68,10 +86,9 @@ pub fn hash_v10x(path: &str) -> Hash {
     }
 }
 
-fn hash_v10x_parts(chars: &str) -> (&[u8], &[u8]) {
-    let bytes = chars.as_bytes();
-    for (i, c) in chars.char_indices().rev() {
-        match c {
+fn hash_v10x_parts(bytes: &[u8]) -> (&[u8], &[u8]) {
+    for (i, c) in (0 .. bytes.len()).zip(bytes).rev() {
+        match *c as char {
             '\\' => break,
             '.'  => return (&bytes[0 .. i], &bytes[i .. bytes.len()]),
             _    => (),
@@ -81,7 +98,7 @@ fn hash_v10x_parts(chars: &str) -> (&[u8], &[u8]) {
 }
 
 
-pub fn hash_v100(bytes: &[u8]) -> Hash {
+fn hash_v001(bytes: &[u8]) -> Hash {
     let mid_point = bytes.len() >> 1;
     
     Hash {

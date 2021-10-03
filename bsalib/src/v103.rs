@@ -1,13 +1,14 @@
 use std::{
-    io::{Read, Seek, Write, Result, copy},
+    io::{BufReader, Read, Seek, Write, Result, copy},
     str,
-    fmt,
+    path::Path,
+    fs::File,
 };
 use enumflags2::{bitflags, BitFlags};
 use libflate::zlib;
 
-use super::{
-    version::{Version, Version10X},
+use crate::{
+    version::Version10X,
     v10x::{
         V10XReader,
         V10XHeader,
@@ -58,21 +59,10 @@ impl ToArchiveBitFlags for ArchiveFlag {
     fn includes_dir_names() -> Self { ArchiveFlag::IncludeDirectoryNames }
 }
 
-pub type Header = V10XHeader<ArchiveFlag>;
 pub enum V103 {}
-impl V103 {
-    pub fn open<R>(reader: R) -> Result<BsaReader<R>>
-    where R: Read + Seek {
-        BsaReader::open(reader)
-    }
-}
-pub type BsaReader<R> = V10XReader<R, V103, ArchiveFlag, DirRecord>;
 impl Versioned for V103 {
-    fn version() -> Version { Version::V10X(Version10X::V103) }
-    fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "BSA v103 file, format used by: TES IV: Oblivion")
-    }
-
+    fn version() -> Version10X { Version10X::V103 }
+   
     fn uncompress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
         let mut decoder = zlib::Decoder::new(&mut reader)?;
         copy(&mut decoder, &mut writer)
@@ -84,5 +74,18 @@ impl Versioned for V103 {
     }
 }
 
+pub fn open<P>(path: P) -> Result<BsaReader<BufReader<File>>>
+where P: AsRef<Path> {
+    let file = File::open(path)?;
+    let buf = BufReader::new(file);
+    read(buf)
+}
+pub fn read<R>(reader: R) -> Result<BsaReader<R>>
+where R: Read + Seek {
+    BsaReader::read(reader)
+}
+
+pub type Header = V10XHeader<ArchiveFlag>;
+pub type BsaReader<R> = V10XReader<R, V103, ArchiveFlag, DirRecord>;
 pub type BsaWriter = V10XWriter<V103, ArchiveFlag, DirRecord>;
 pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;

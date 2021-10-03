@@ -1,13 +1,14 @@
 use std::{
-    io::{Read, Write, Seek, Result, copy},
-    fmt,
+    io::{BufReader, Read, Write, Seek, Result, copy},
+    path::Path,
+    fs::File,
 };
 use bytemuck::{Zeroable, Pod};
 
 
 use super::{
     bin::{read_struct, write_struct, Readable, Writable},
-    version::{Version, Version10X},
+    version::Version10X,
     hash::Hash,
     v10x::{self, V10XReader, V10XWriter, V10XWriterOptions, Versioned},
 };
@@ -55,19 +56,29 @@ impl From<v10x::DirRecord> for RawDirRecord {
     }
 }
 
-pub enum V105 {}
-impl V105 {
-    pub fn open<R>(reader: R) -> Result<BsaReader<R>>
-    where R: Read + Seek {
-        BsaReader::open(reader)
-    }
-}
-impl Versioned for V105 {
-    fn version() -> Version { Version::V10X(Version10X::V105) }
-    fn fmt_version(f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "BSA v105 file, format used by: TES V: Skyrim Special Edition")
-    }
 
+
+
+pub type BsaReader<R> = V10XReader<R, V105, ArchiveFlag, RawDirRecord>;
+pub type BsaWriter = V10XWriter<V105, ArchiveFlag, RawDirRecord>;
+pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;
+
+pub enum V105 {}
+
+pub fn open<P>(path: P) -> Result<BsaReader<BufReader<File>>>
+where P: AsRef<Path> {
+    let file = File::open(path)?;
+    let buf = BufReader::new(file);
+    read(buf)
+}
+pub fn read<R>(reader: R) -> Result<BsaReader<R>>
+where R: Read + Seek {
+    BsaReader::read(reader)
+}
+
+impl Versioned for V105 {
+    fn version() -> Version10X { Version10X::V105 }
+ 
     fn uncompress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
         let mut decoder = lz4::Decoder::new(&mut reader)?;
         copy(&mut decoder, &mut writer)
@@ -81,22 +92,20 @@ impl Versioned for V105 {
     }
 }
 
-pub type BsaReader<R> = V10XReader<R, V105, ArchiveFlag, RawDirRecord>;
-pub type BsaWriter = V10XWriter<V105, ArchiveFlag, RawDirRecord>;
-pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;
-
-
 #[cfg(test)]
 mod tests {
     use std::io::{Cursor, SeekFrom};
     use enumflags2::BitFlags;
-    use crate::str::BZString;
-    use crate::hash::hash_v10x;
-    use crate::bin::DataSource;
-    use crate::archive::{FileId, BsaWriter, BsaReader, BsaDirSource, BsaFileSource};
-    use crate::version::{Version, Version10X};
-    use crate::v105;
     use super::*;
+    use crate::{
+        str::BZString,
+        Hash,
+        bin::DataSource,
+        read::{BsaReader},
+        write::{BsaWriter, BsaDirSource, BsaFileSource},
+        version::{Version, Version10X},
+        v105,
+    };
 
     #[test]
     fn writes_version() {
@@ -137,7 +146,7 @@ mod tests {
 
         assert_eq!(dirs.len(), 1, "dirs.len()");
         assert_eq!(dirs[0].file_count, 1, "dirs[0].file_count");
-        assert_eq!(dirs[0].name_hash, hash_v10x("a"), "dirs[0].name_hash");
+        assert_eq!(dirs[0].name_hash, Hash::v10x("a"), "dirs[0].name_hash");
     }
 
     #[test]
@@ -160,7 +169,7 @@ mod tests {
 
         assert_eq!(dir_content.name, Some(BZString::new("a").unwrap()), "dir_content.name");
         assert_eq!(dir_content.files.len(), 1, "dir_content.files");
-        assert_eq!(dir_content.files[0].name_hash, hash_v10x("b"), "dir_content.files[0].name_hash");
+        assert_eq!(dir_content.files[0].name_hash, Hash::v10x("b"), "dir_content.files[0].name_hash");
         assert_eq!(dir_content.files[0].size, 4, "dir_content.files[0].size");
     }
 
@@ -194,16 +203,18 @@ mod tests {
 
     fn check_write_read_identity_bsa(dirs: Vec<BsaDirSource<Vec<u8>>>) {
         let bytes = bsa_bytes(dirs.clone());
-        let mut bsa = v105::BsaReader::open(bytes)
+        let mut bsa = v105::BsaReader::read(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
-        let in_dirs = bsa.read_dirs()
+        let in_dirs = bsa.dirs()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));
 
 
         assert_eq!(in_dirs.len(), 1, "in_dirs.len()");
         assert_eq!(in_dirs[0].files.len(), 1, "in_dirs[0].files.len()");
-        assert_eq!(in_dirs[0].name, FileId::String("a".to_owned()), "in_dirs[0].name");
-        assert_eq!(in_dirs[0].files[0].name, FileId::String("b".to_owned()), "in_dirs[0].files[0].name");
+        assert_eq!(in_dirs[0].hash, Hash::v10x("a"), "in_dirs[0].name");
+        assert_eq!(in_dirs[0].name, Some("a".to_owned()), "in_dirs[0].name");
+        assert_eq!(in_dirs[0].files[0].hash, Hash::v10x("b"), "in_dirs[0].files[0].name");
+        assert_eq!(in_dirs[0].files[0].name, Some("b".to_owned()), "in_dirs[0].files[0].name");
 
         let mut data = Vec::<u8>::new();
         bsa.extract(&in_dirs[0].files[0], &mut data)

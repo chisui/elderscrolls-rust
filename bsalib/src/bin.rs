@@ -22,43 +22,45 @@ pub fn write_struct<S: Pod, W: Write>(val: &S, mut writer: W) -> Result<()> {
 
 
 pub trait Readable: Sized
-where <Self as Readable>::ReadableArgs: Copy {
-    type ReadableArgs = ();
+where
+    Self::Arg: Copy
+{
+    type Arg = ();
 
     fn offset0() -> Option<usize> 
-    where Self::ReadableArgs: Default {
-        Self::offset(&Self::ReadableArgs::default())
+    where Self::Arg: Default {
+        Self::offset(&Self::Arg::default())
     }
 
-    fn offset(_: &<Self as Readable>::ReadableArgs) -> Option<usize> {
+    fn offset(_: &Self::Arg) -> Option<usize> {
         None
     }
 
     fn read0<R: Read + Seek>(reader: R) -> Result<Self>
-    where Self::ReadableArgs: Default {
-        Self::read(reader, &Self::ReadableArgs::default())
+    where Self::Arg: Default {
+        Self::read(reader, &Self::Arg::default())
     }
 
-    fn read<R: Read + Seek>(mut reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self> {
+    fn read<R: Read + Seek>(mut reader: R, args: &Self::Arg) -> Result<Self> {
         if let Some(i) = Self::offset(args) {
             reader.seek(SeekFrom::Start(i as u64))?;
         }
         Self::read_here(&mut reader, args)
     }
 
-    fn read_here<R: Read + Seek>(reader: R, args: &<Self as Readable>::ReadableArgs) -> Result<Self>;
+    fn read_here<R: Read + Seek>(reader: R, args: &Self::Arg) -> Result<Self>;
     
     fn read_here0<R: Read + Seek>(reader: R) -> Result<Self>
-    where Self::ReadableArgs: Default {
-        Self::read_here(reader, &Self::ReadableArgs::default())
+    where Self::Arg: Default {
+        Self::read_here(reader, &Self::Arg::default())
     }
 
     fn read_many0<R: Read + Seek>(reader: R, num: usize) -> Result<Vec<Self>>
-    where Self::ReadableArgs: Default {
-        Self::read_many(reader, num, &Self::ReadableArgs::default())
+    where Self::Arg: Default {
+        Self::read_many(reader, num, &Self::Arg::default())
     }
 
-    fn read_many<R: Read + Seek>(mut reader: R, num: usize, args: &<Self as Readable>::ReadableArgs) -> Result<Vec<Self>> {
+    fn read_many<R: Read + Seek>(mut reader: R, num: usize, args: &Self::Arg) -> Result<Vec<Self>> {
         let mut vals = Vec::new();
         for _ in 0..num {
             let val = Self::read_here(&mut reader, args)?;
@@ -68,7 +70,7 @@ where <Self as Readable>::ReadableArgs: Copy {
     }
 }
 default impl<T: Sized + fmt::Debug + Pod> Readable for T {
-    fn read_here<R: Read + Seek>(reader: R, _: &Self::ReadableArgs) -> Result<Self> {
+    fn read_here<R: Read + Seek>(reader: R, _: &Self::Arg) -> Result<Self> {
         read_struct(reader)
     }
 }

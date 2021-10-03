@@ -1,6 +1,6 @@
 [package]
 name = "bsabin"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2018"
 license = "MIT OR Apache-2.0"
 description = "cli for creating and extracting Bethesda Softworks Archives"
@@ -19,4 +19,4 @@ path = "src/main.rs"
 clap = "3.0.0-beta.4"
 glob = "0.3.0"
 thiserror = "1.0.28"
-bsalib = { version = "0.1.0", path = "../bsalib" }
+bsalib = { version = "0.2.0", path = "../bsalib" }

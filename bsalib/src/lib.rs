@@ -1,7 +1,8 @@
 #![allow(incomplete_features)]
 #![feature(associated_type_defaults, wrapping_int_impl, specialization, arbitrary_enum_discriminant)]
 pub mod hash;
-pub mod archive;
+pub mod read;
+pub mod write;
 pub mod bin;
 pub mod str;
 pub mod magicnumber;
@@ -13,16 +14,21 @@ pub mod v104;
 pub mod v105;
 
 use std::{
-    io::{Read, Seek, Write, Result, Error, ErrorKind},
+    io::{BufReader, Read, Seek, Write, Result, Error, ErrorKind},
     fmt,
+    fs::File,
+    path::Path,
 };
 use thiserror::Error;
 
-use archive::{BsaDir, BsaFile};
-use bin::Readable;
+use crate::{
+    read::{BsaReader, BsaDir, BsaFile},
+    bin::Readable,
+};
 
-pub use version::{Version, Version10X};
-pub use {
+pub use crate::{
+    hash::Hash,
+    version::{Version, Version10X},
     v103::V103,
     v104::V104,
     v105::V105,
@@ -53,40 +59,40 @@ pub enum SomeBsaReader<R> {
     V104(v104::BsaReader<R>),
     V105(v105::BsaReader<R>),
 }
-impl<R> fmt::Display for SomeBsaReader<R> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SomeBsaReader::V103(bsa) => bsa.fmt(f),
-            SomeBsaReader::V104(bsa) => bsa.fmt(f),
-            SomeBsaReader::V105(bsa) => bsa.fmt(f),
-        }
-    }
-}
-impl<R: Read + Seek> SomeBsaReader<R> {
-    pub fn open(mut reader: R) -> Result<SomeBsaReader<R>> {
-        match Version::read(&mut reader, &())? {
-            Version::V10X(v) => match v {
-                Version10X::V103 => v103::BsaReader::open(reader)
-                    .map(SomeBsaReader::V103),
-                Version10X::V104 => v104::BsaReader::open(reader)
-                    .map(SomeBsaReader::V104),
-                Version10X::V105 => v105::BsaReader::open(reader)
-                    .map(SomeBsaReader::V105),
-            },
-            v => Err(Error::new(ErrorKind::InvalidData, UnsupportedVersion(v))),
-        }
-    }
-}
-impl<R: Read + Seek> archive::BsaReader for SomeBsaReader<R> {
-    type Header = SomeBsaHeader;
+impl<R> SomeBsaReader<R> {
 
-    fn version(&self) -> Version {
+    pub fn version(&self) -> Version {
         match self {
-            SomeBsaReader::V103(bsa) => bsa.version(),
-            SomeBsaReader::V104(bsa) => bsa.version(),
-            SomeBsaReader::V105(bsa) => bsa.version(),
+            SomeBsaReader::V103(_) => Version::V10X(Version10X::V103),
+            SomeBsaReader::V104(_) => Version::V10X(Version10X::V104),
+            SomeBsaReader::V105(_) => Version::V10X(Version10X::V105),
         }
     }
+}
+
+pub fn open<P>(path: P) -> Result<SomeBsaReader<BufReader<File>>>
+where P: AsRef<Path> {
+    let file = File::open(path)?;
+    let buf = BufReader::new(file);
+    read(buf)
+}
+pub fn read<R>(mut reader: R) -> Result<SomeBsaReader<R>>
+where R: Read + Seek {
+    match Version::read(&mut reader, &())? {
+        Version::V10X(v) => match v {
+            Version10X::V103 => v103::read(reader)
+                .map(SomeBsaReader::V103),
+            Version10X::V104 => v104::read(reader)
+                .map(SomeBsaReader::V104),
+            Version10X::V105 => v105::read(reader)
+                .map(SomeBsaReader::V105),
+        },
+        v => Err(Error::new(ErrorKind::InvalidData, UnsupportedVersion(v))),
+    }
+}
+
+impl<R: Read + Seek> BsaReader for SomeBsaReader<R> {
+    type Header = SomeBsaHeader;
 
     fn header(&self) -> Self::Header {
         match self {
@@ -96,11 +102,11 @@ impl<R: Read + Seek> archive::BsaReader for SomeBsaReader<R> {
         }
     }
 
-    fn read_dirs(&mut self) -> Result<Vec<BsaDir>> {
+    fn dirs(&mut self) -> Result<Vec<BsaDir>> {
         match self {
-            SomeBsaReader::V103(bsa) => bsa.read_dirs(),
-            SomeBsaReader::V104(bsa) => bsa.read_dirs(),
-            SomeBsaReader::V105(bsa) => bsa.read_dirs(),
+            SomeBsaReader::V103(bsa) => bsa.dirs(),
+            SomeBsaReader::V104(bsa) => bsa.dirs(),
+            SomeBsaReader::V105(bsa) => bsa.dirs(),
         }
     }
 

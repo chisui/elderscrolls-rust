@@ -1,5 +1,5 @@
 use std::{
-    io::{BufReader, Result, Error, ErrorKind},
+    io::{Result, Error, ErrorKind},
     fs::{self, File},
     path::PathBuf,
     fmt,
@@ -9,10 +9,11 @@ use glob::{Pattern, MatchOptions};
 use thiserror::Error;
 
 use bsalib::{
-    SomeBsaReader,
+    self,
     SomeBsaHeader,
     Version, Version10X,
-    archive::{self, BsaReader, BsaWriter, FileId},
+    read::{BsaReader, BsaEntry, EntryId},
+    write::{BsaWriter, list_dir},
     v105,
     v10x::{ToArchiveBitFlags, V10XHeader},
 };
@@ -40,9 +41,7 @@ impl Cmd for Cmds {
 
 impl Cmd for Info {
     fn exec(&self) -> Result<()> {
-        let mut reader = File::open(&self.file)
-            .map(BufReader::new)?;
-        let bsa = SomeBsaReader::open(&mut reader)?;
+        let bsa = bsalib::open(&self.file)?;
         if self.verbose {
             println!("{}", bsa.header());
         } else {
@@ -58,17 +57,14 @@ impl Cmd for Info {
 
 impl Cmd for List {
     fn exec(&self) -> Result<()> {
-        let mut reader = File::open(&self.file)
-            .map(BufReader::new)?;
-
-        let mut bsa = SomeBsaReader::open(&mut reader)?;
-        for dir in bsa.read_dirs()? {
-            for file in dir.files {
+        let mut bsa = bsalib::open(&self.file)?;
+        for dir in bsa.dirs()? {
+            for file in &dir {
                 if self.attributes {
                     let c = if file.compressed { "c" } else { " " };
-                    println!("{0} {1: >8} {2}/{3}", c, file.size / 1000, dir.name, file.name);
+                    println!("{0} {1: >8} {2}/{3}", c, file.size / 1000, dir.id(), file.id());
                 } else {
-                    println!("{0}/{1}", dir.name, file.name);
+                    println!("{0}/{1}", dir.id(), file.id());
                 }
             }
         }
@@ -116,19 +112,15 @@ impl FileMatcher {
 impl Cmd for Extract {
     fn exec(&self) -> Result<()> {
         let matcher = FileMatcher::new(&self.include, &self.exclude)?;
+        
+        let mut bsa = bsalib::open(&self.file)?;
 
-        let mut reader = File::open(&self.file)
-            .map(BufReader::new)?;
-
-        let mut bsa = SomeBsaReader::open(&mut reader)?;
-
-        let dirs = bsa.read_dirs()?;
-        for dir in dirs {
-            for file in dir.files {
-                let file_path = format!("{}/{}", dir.name, file.name);
+        for dir in bsa.dirs()? {
+            for file in &dir {
+                let file_path = format!("{}/{}", dir.id(), file.id());
                 if matcher.matches(&file_path) {
                     println!("{}", file_path);
-                    let mut out = open_output_file(&self.output, &dir.name, &file.name)?;
+                    let mut out = open_output_file(&self.output, &dir.id(), &file.id())?;
                     bsa.extract(&file, &mut out)?;
                 }
             }
@@ -138,13 +130,22 @@ impl Cmd for Extract {
     }
 }
 
-fn open_output_file(out: &PathBuf, dir: &FileId, file: &FileId) -> Result<File> {
-    let mut path_buf = PathBuf::from(out);
-    path_buf.push(format!("{}", dir));
-    fs::create_dir_all(&path_buf)?;
-    path_buf.push(format!("{}", file));
-    check_exists(&path_buf)?;
-    File::create(path_buf.as_path())
+fn open_output_file(out: &PathBuf, dir: &EntryId, file: &EntryId) -> Result<File> {
+    let dir_path = as_path(&dir);
+    let file_path = as_path(&file);
+    let mut path = out.join(dir_path);
+    fs::create_dir_all(&path)?;
+    path.push(file_path);
+    check_exists(&path)?;
+    File::create(path.as_path())
+}
+
+fn as_path(id: &EntryId) -> PathBuf {
+    if let Some(name) = &id.name {
+        PathBuf::from(name)
+    } else {
+        PathBuf::from(format!("{}", id.hash))
+    }
 }
 
 fn check_exists(path: &PathBuf) -> Result<()> {
@@ -186,7 +187,7 @@ impl Cmd for Create {
             opts.archive_flags |= v105::ArchiveFlag::EmbedFileNames;
         }
         
-        let dirs = archive::list_dir(&self.file)?;
+        let dirs = list_dir(&self.file)?;
         let file = File::create(output)?;
         v105::BsaWriter::write_bsa(opts, dirs, file)
     }
