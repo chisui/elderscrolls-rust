@@ -16,6 +16,7 @@ in mkShell {
       extensions = [
         "rust-src"
         "rls-preview"
+        "rust-analyzer-preview"
       ];
     })
   ];

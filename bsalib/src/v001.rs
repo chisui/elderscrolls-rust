@@ -87,10 +87,10 @@ impl<R: Read + Seek> BsaReader<R> {
         
         self.reader.seek(SeekFrom::Start(offset_after_header + self.header.offset_hash_table as u64))?;
         let hashes = Hash::read_many0(&mut self.reader, file_count)?;
-
+        
         let offset_names_start = offset_after_header + (file_count as u64 * (size_of::<FileRecord>() + size_of::<u32>()) as u64);
         let offset_after_index = offset_after_header + self.header.offset_hash_table as u64 + (size_of::<Hash>() * file_count) as u64;
-
+        
         recs.iter().zip(name_offsets).zip(hashes)
             .map(|((rec, name_offset), hash)| {
                 self.reader.seek(SeekFrom::Start(offset_names_start + name_offset as u64))?;
@@ -203,8 +203,14 @@ impl write::BsaWriter for V001 {
         for file in &files {
             Hash::v001(&file.name).write_here(&mut out)?;
         }
+        let offset_after_index = size_of::<MagicNumber>() as u32
+                               + size_of::<Header>() as u32 
+                               + offset_hash_table 
+                               + (size_of::<Hash>() * files.len()) as u32;
         for (rec, file) in recs.iter_mut().zip(&files) {
-            rec.data.offset = out.stream_position()? as u32;
+            let pos = out.stream_position()? as u32;
+            println!("write file data at: {}", pos);
+            rec.data.offset = pos - offset_after_index;
             let mut data = file.data.open()?;
             rec.data.size = copy(&mut data, &mut out)? as u32;
             rec.update(&mut out)?;

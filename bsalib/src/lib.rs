@@ -1,10 +1,10 @@
 #![allow(incomplete_features)]
-#![feature(associated_type_defaults, wrapping_int_impl, specialization, arbitrary_enum_discriminant)]
-pub mod hash;
+#![feature(associated_type_defaults, wrapping_int_impl, specialization)]
+pub mod bin;
 pub mod read;
 pub mod write;
-pub mod bin;
 pub mod str;
+pub mod hash;
 pub mod magicnumber;
 pub mod version;
 pub mod v001;
@@ -77,7 +77,7 @@ where P: AsRef<Path> {
 }
 pub fn read<R>(mut reader: R) -> Result<SomeBsaReader<R>>
 where R: Read + Seek {
-    let v = <Version as Readable>::read(&mut reader, &())?;
+    let v = Version::read0(&mut reader)?;
     v.read(reader)
 }
 

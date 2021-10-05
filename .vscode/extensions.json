@@ -2,6 +2,6 @@
     "recommendations": [
         "cab404.vscode-direnv",
         "jnoortheen.nix-ide",
-        "rust-lang.rust"
+        "matklad.rust-analyzer"
     ]
 }
