@@ -65,7 +65,6 @@ pub trait Readable: Sized {
     }
 }
 
-#[macro_export]
 macro_rules! derive_readable_via_pod {
     ( $t:ty ) => {
         impl crate::bin::Readable for $t {
@@ -75,6 +74,7 @@ macro_rules! derive_readable_via_pod {
         }
     };
 }
+pub(crate) use derive_readable_via_pod;
 derive_readable_via_pod!(u8);
 derive_readable_via_pod!(u16);
 derive_readable_via_pod!(u32);
@@ -86,7 +86,6 @@ pub trait Writable {
     fn write_here<W: Write>(&self, writer: W) -> Result<()>;
 }
 
-#[macro_export]
 macro_rules! derive_writable_via_pod {
     ( $t:ty ) => {
         impl crate::bin::Writable for $t {
@@ -97,12 +96,11 @@ macro_rules! derive_writable_via_pod {
         }
     };
 }
+pub(crate) use derive_writable_via_pod;
 derive_writable_via_pod!(u8);
 derive_writable_via_pod!(u16);
 derive_writable_via_pod!(u32);
 derive_writable_via_pod!(u64);
-
-#[macro_export]
 macro_rules! derive_writable_via_into_iter {
     ( $t:tt ) => {
         impl<A: Writable> Writable for $t<A> {
@@ -120,6 +118,7 @@ macro_rules! derive_writable_via_into_iter {
         }
     };
 }
+pub(crate) use derive_writable_via_into_iter;
 derive_writable_via_into_iter!(Vec);
 derive_writable_via_into_iter!(Option);
 

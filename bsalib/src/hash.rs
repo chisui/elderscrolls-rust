@@ -2,7 +2,7 @@ use std::{fmt, hash};
 use bytemuck::{Zeroable, Pod};
 
 use crate::bin::concat_bytes;
-use crate::{derive_readable_via_pod, derive_writable_via_pod};
+use crate::bin::{derive_readable_via_pod, derive_writable_via_pod};
 
 
 #[repr(C)]

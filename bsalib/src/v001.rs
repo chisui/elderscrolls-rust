@@ -9,7 +9,10 @@ use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 
 use crate::{
-    bin::{read_struct, Readable, Writable, DataSource, Positioned},
+    bin::{
+        read_struct, Readable, Writable, DataSource, Positioned,
+        derive_readable_via_pod, derive_writable_via_pod,
+    },
     Hash,
     Version,
     read::{self, BsaFile},
@@ -17,7 +20,6 @@ use crate::{
     magicnumber::MagicNumber,
     str::ZString,
 };
-use crate::{derive_readable_via_pod, derive_writable_via_pod};
 
 
 #[derive(Debug, Error)]

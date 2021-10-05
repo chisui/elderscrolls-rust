@@ -10,7 +10,10 @@ use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
 use crate::{
-    bin::{self, read_struct, Readable, Writable, Positioned, DataSource},
+    bin::{
+        self, read_struct, Readable, Writable, Positioned, DataSource,
+        derive_readable_via_pod, derive_writable_via_pod,
+    },
     str::{BZString, BString, ZString},
     Hash,
     version::{Version, Version10X},
@@ -18,7 +21,6 @@ use crate::{
     read::{BsaReader, BsaDir, BsaFile},
     write::{BsaWriter, BsaDirSource, BsaFileSource},
 };
-use crate::{derive_readable_via_pod, derive_writable_via_pod};
 
 
 pub trait ToArchiveBitFlags: BitFlag + fmt::Debug {
