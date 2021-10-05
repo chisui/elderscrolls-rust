@@ -70,6 +70,16 @@ impl Writable for FileRecord {
     }
 }
 
+const fn offset_after_header() -> u64 {
+    (size_of::<MagicNumber>() + size_of::<Header>()) as u64
+}
+const fn offset_names_start(file_count: u64) -> u64 {
+    offset_after_header() + (file_count * (size_of::<FileRecord>() + size_of::<u32>()) as u64)
+}
+const fn offset_after_index(header: &Header) -> u64 {
+    offset_after_header() + header.offset_hash_table as u64 + (size_of::<Hash>() * header.file_count as usize) as u64
+}
+
 pub enum V001 {}
 pub struct BsaReader<R> {
     pub reader: R,
@@ -79,29 +89,29 @@ pub struct BsaReader<R> {
 impl<R: Read + Seek> BsaReader<R> {
     fn files(&mut self) -> Result<Vec<BsaFile>> {
         let file_count = self.header.file_count as usize;
-        let offset_after_header = (size_of::<MagicNumber>() + size_of::<Header>()) as u64;
-        self.reader.seek(SeekFrom::Start(offset_after_header))?;
+        self.reader.seek(SeekFrom::Start(offset_after_header()))?;
         
         let recs = FileRecord::read_many0(&mut self.reader, file_count)?;
         let name_offsets = u32::read_many0(&mut self.reader, file_count)?;
         
-        self.reader.seek(SeekFrom::Start(offset_after_header + self.header.offset_hash_table as u64))?;
+        self.reader.seek(SeekFrom::Start(offset_after_header() + self.header.offset_hash_table as u64))?;
         let hashes = Hash::read_many0(&mut self.reader, file_count)?;
-        
-        let offset_names_start = offset_after_header + (file_count as u64 * (size_of::<FileRecord>() + size_of::<u32>()) as u64);
-        let offset_after_index = offset_after_header + self.header.offset_hash_table as u64 + (size_of::<Hash>() * file_count) as u64;
         
         recs.iter().zip(name_offsets).zip(hashes)
             .map(|((rec, name_offset), hash)| {
-                self.reader.seek(SeekFrom::Start(offset_names_start + name_offset as u64))?;
-                let name = ZString::read_here0(&mut self.reader)?;
+                let name_pos = offset_names_start(file_count as u64) + name_offset as u64;
+                self.reader.seek(SeekFrom::Start(name_pos))?;
+                let name = match ZString::read_here0(&mut self.reader) {
+                    Ok(n) => n,
+                    Err(err) => panic!("could not read name at {}: {}", name_pos, err),
+                };
 
                 Ok(BsaFile {
                     hash,
                     name: Some(name.to_string()),
                     compressed: false,
                     size: rec.size as usize,
-                    offset: offset_after_index + rec.offset as u64,
+                    offset: offset_after_index(&self.header) + rec.offset as u64,
                 })
             })
             .collect()
@@ -177,10 +187,11 @@ impl write::BsaWriter for V001 {
         }
 
         Version::V001.write_here(&mut out)?;
-        Header {
+        let header = Header {
             offset_hash_table,
             file_count: files.len() as u32,
-        }.write_here(&mut out)?;
+        };
+        header.write_here(&mut out)?;
       
         let mut recs: Vec<Positioned<FileRecord>> = Vec::new();
         for _ in &files {
@@ -194,8 +205,10 @@ impl write::BsaWriter for V001 {
         for _ in &files {
             name_offsets.push(Positioned::new(0, &mut out)?);
         }
+        let offset_names_start = offset_names_start(files.len() as u64) as u32;
         for (name_offset, file) in name_offsets.iter_mut().zip(&files) {
-            name_offset.data = out.stream_position()? as u32;
+            name_offset.data = out.stream_position()? as u32 - offset_names_start;
+            println!("write name at {}", name_offset.data);
             let name = ZString::new(&file.name)?;
             name.write_here(&mut out)?;
             name_offset.update(&mut out)?;
@@ -203,14 +216,10 @@ impl write::BsaWriter for V001 {
         for file in &files {
             Hash::v001(&file.name).write_here(&mut out)?;
         }
-        let offset_after_index = size_of::<MagicNumber>() as u32
-                               + size_of::<Header>() as u32 
-                               + offset_hash_table 
-                               + (size_of::<Hash>() * files.len()) as u32;
         for (rec, file) in recs.iter_mut().zip(&files) {
             let pos = out.stream_position()? as u32;
             println!("write file data at: {}", pos);
-            rec.data.offset = pos - offset_after_index;
+            rec.data.offset = pos - offset_after_index(&header) as u32;
             let mut data = file.data.open()?;
             rec.data.size = copy(&mut data, &mut out)? as u32;
             rec.update(&mut out)?;
@@ -254,11 +263,7 @@ mod tests {
 
     #[test]
     fn write_read_identity_bsa() {
-        check_write_read_identity_bsa(some_bsa_dirs())
-    }
-
-
-    fn check_write_read_identity_bsa(dirs: Vec<BsaDirSource<Vec<u8>>>) {
+        let dirs = some_bsa_dirs();
         let bytes = bsa_bytes(dirs.clone());
         let mut bsa = v001::read(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
@@ -279,7 +284,7 @@ mod tests {
     fn some_bsa_dirs() -> Vec<BsaDirSource<Vec<u8>>> {
         vec![
             BsaDirSource::new("a".to_owned(), vec![
-                    BsaFileSource::new("b".to_owned(), vec![1,2,3,4])
+                BsaFileSource::new("b".to_owned(), vec![1,2,3,4])
             ])
         ]
     }
