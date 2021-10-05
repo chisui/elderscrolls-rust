@@ -12,7 +12,7 @@ use crate::{
     bin::{read_struct, write_struct, Readable, Writable, DataSource, Positioned},
     Hash,
     Version,
-    read::{self, BsaDir, BsaFile},
+    read::{self, BsaFile},
     write::{self, BsaDirSource},
     magicnumber::MagicNumber,
     str::ZString,
@@ -74,7 +74,7 @@ pub enum V001 {}
 pub struct BsaReader<R> {
     pub reader: R,
     pub header: Header,
-    pub dirs: Option<Vec<BsaDir>>,
+    pub files: Option<Vec<BsaFile>>,
 }
 impl<R: Read + Seek> BsaReader<R> {
     fn files(&mut self) -> Result<Vec<BsaFile>> {
@@ -118,26 +118,22 @@ where R: Read + Seek {
     Ok(BsaReader {
         reader,
         header,
-        dirs: None,
+        files: None,
     })
 }
 impl<R> read::BsaReader for BsaReader<R>
 where R: Read + Seek {
     type Header = Header;
+    type Root = Vec<BsaFile>;
     
     fn header(&self) -> Header { self.header }
-    fn dirs(&mut self) -> Result<Vec<BsaDir>> {
-        if let Some(dirs) = &self.dirs {
-            Ok(dirs.to_vec())
+    fn dirs(&mut self) -> Result<Vec<BsaFile>> {
+        if let Some(files) = &self.files {
+            Ok(files.to_vec())
         } else {
-            let dirs = vec![BsaDir {
-                hash: Hash::from(0),
-                name: None,
-                files: self.files()?,
-            }];
-
-            self.dirs = Some(dirs.to_vec());
-            Ok(dirs)
+            let files =self.files()?;
+            self.files = Some(files.to_vec());
+            Ok(files)
         }
     }
     fn extract<W: Write>(&mut self, file: &BsaFile, mut out: W) -> Result<()> {
@@ -259,19 +255,16 @@ mod tests {
         let bytes = bsa_bytes(dirs.clone());
         let mut bsa = v001::read(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
-        let in_dirs = bsa.dirs()
+        let files = bsa.dirs()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));
 
-
-        assert_eq!(in_dirs.len(), 1, "in_dirs.len()");
-        assert_eq!(in_dirs[0].files.len(), 1, "in_dirs[0].files.len()");
-        assert_eq!(in_dirs[0].hash, Hash::v001("a"), "in_dirs[0].name");
-        assert_eq!(in_dirs[0].name, Some("a".to_owned()), "in_dirs[0].name");
-        assert_eq!(in_dirs[0].files[0].hash, Hash::v001("b"), "in_dirs[0].files[0].name");
-        assert_eq!(in_dirs[0].files[0].name, Some("b".to_owned()), "in_dirs[0].files[0].name");
+    
+        assert_eq!(files.len(), 1, "files.len()");
+        assert_eq!(files[0].hash, Hash::v001("a\\b"), "files[0].hash");
+        assert_eq!(files[0].name, Some("a\\b".to_owned()), "files[0].name");
 
         let mut data = Vec::<u8>::new();
-        bsa.extract(&in_dirs[0].files[0], &mut data)
+        bsa.extract(&files[0], &mut data)
             .unwrap_or_else(|err| panic!("could not extract data {}", err));
         assert_eq!(dirs[0].files[0].data, data, "file data");
     }

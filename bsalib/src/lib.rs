@@ -81,8 +81,13 @@ where R: Read + Seek {
     v.read(reader)
 }
 
+pub enum SomeBsaRoot {
+    Dirs(Vec<BsaDir>),
+    Files(Vec<BsaFile>),
+}
 impl<R: Read + Seek> BsaReader for SomeBsaReader<R> {
     type Header = SomeBsaHeader;
+    type Root = SomeBsaRoot;
 
     fn header(&self) -> Self::Header {
         match self {
@@ -93,12 +98,12 @@ impl<R: Read + Seek> BsaReader for SomeBsaReader<R> {
         }
     }
 
-    fn dirs(&mut self) -> Result<Vec<BsaDir>> {
+    fn dirs(&mut self) -> Result<SomeBsaRoot> {
         match self {
-            SomeBsaReader::V001(bsa) => bsa.dirs(),
-            SomeBsaReader::V103(bsa) => bsa.dirs(),
-            SomeBsaReader::V104(bsa) => bsa.dirs(),
-            SomeBsaReader::V105(bsa) => bsa.dirs(),
+            SomeBsaReader::V001(bsa) => bsa.dirs().map(SomeBsaRoot::Files),
+            SomeBsaReader::V103(bsa) => bsa.dirs().map(SomeBsaRoot::Dirs),
+            SomeBsaReader::V104(bsa) => bsa.dirs().map(SomeBsaRoot::Dirs),
+            SomeBsaReader::V105(bsa) => bsa.dirs().map(SomeBsaRoot::Dirs),
         }
     }
 

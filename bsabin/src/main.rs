@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use bsalib::{
     self,
-    SomeBsaHeader, SomeBsaReader,
+    SomeBsaHeader, SomeBsaReader, SomeBsaRoot,
     Version, Version10X,
     read::{BsaReader, BsaEntry, EntryId},
     write::{BsaWriter, list_dir},
@@ -59,15 +59,28 @@ impl Cmd for Info {
 impl Cmd for List {
     fn exec(&self) -> Result<()> {
         let mut bsa = open(&self.file, &self.overrides)?;
-        for dir in bsa.dirs()? {
-            for file in &dir {
-                if self.attributes {
-                    let c = if file.compressed { "c" } else { " " };
-                    println!("{0} {1: >8} {2}/{3}", c, file.size / 1000, dir.id(), file.id());
-                } else {
-                    println!("{0}/{1}", dir.id(), file.id());
+        match bsa.dirs()? {
+            SomeBsaRoot::Dirs(dirs) => {
+                for dir in &dirs {
+                    for file in dir {
+                        if self.attributes {
+                            let c = if file.compressed { "c" } else { " " };
+                            println!("{0} {1: >8} {2}/{3}", c, file.size / 1000, dir.id(), file.id());
+                        } else {
+                            println!("{0}/{1}", dir.id(), file.id());
+                        }
+                    }
                 }
-            }
+            },
+            SomeBsaRoot::Files(files) => {
+                for file in &files {
+                    if self.attributes {
+                        println!("  {0: >8} {1}", file.size / 1000, file.id());
+                    } else {
+                        println!("{0}", file.id());
+                    }
+                }
+            },
         }
         Ok(())
     }
@@ -116,15 +129,29 @@ impl Cmd for Extract {
         
         let mut bsa = open(&self.file, &self.overrides)?;
 
-        for dir in bsa.dirs()? {
-            for file in &dir {
-                let file_path = format!("{}/{}", dir.id(), file.id());
-                if matcher.matches(&file_path) {
-                    println!("{}", file_path);
-                    let mut out = open_output_file(&self.output, &dir.id(), &file.id())?;
-                    bsa.extract(&file, &mut out)?;
+        match bsa.dirs()? {
+            SomeBsaRoot::Dirs(dirs) => {
+                for dir in dirs {
+                    for file in &dir {
+                        let file_path = format!("{}/{}", dir.id(), file.id());
+                        if matcher.matches(&file_path) {
+                            println!("{}", file_path);
+                            let mut out = open_output_file(&self.output, &[dir.id(), file.id()])?;
+                            bsa.extract(&file, &mut out)?;
+                        }
+                    }
                 }
-            }
+            },
+            SomeBsaRoot::Files(files) => {
+                for file in files {
+                    let file_path = format!("{}", file.id());
+                    if matcher.matches(&file_path) {
+                        println!("{}", file_path);
+                        let mut out = open_output_file(&self.output, &[file.id()])?;
+                        bsa.extract(&file, &mut out)?;
+                    }
+                }
+            },
         }
 
         Ok(())
@@ -139,12 +166,14 @@ fn open(file: &PathBuf, overrides: &Overrides) -> Result<SomeBsaReader<BufReader
     }
 }
 
-fn open_output_file(out: &PathBuf, dir: &EntryId, file: &EntryId) -> Result<File> {
-    let dir_path = as_path(&dir);
-    let file_path = as_path(&file);
-    let mut path = out.join(dir_path);
-    fs::create_dir_all(&path)?;
-    path.push(file_path);
+fn open_output_file(out: &PathBuf, ids: &[EntryId]) -> Result<File> {
+    let mut path = out.clone();
+    for id in ids {
+        path.push(as_path(id));
+    }
+    if let Some(parent) = path.parent(){
+        fs::create_dir_all(parent)?;
+    }
     check_exists(&path)?;
     File::create(path.as_path())
 }

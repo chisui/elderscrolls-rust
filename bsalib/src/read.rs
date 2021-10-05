@@ -65,10 +65,11 @@ impl BsaEntry for BsaFile {
 
 pub trait BsaReader: Sized {
     type Header;
+    type Root = Vec<BsaDir>;
 
     fn header(&self) -> Self::Header;
 
-    fn dirs(&mut self) -> Result<Vec<BsaDir>>;
+    fn dirs(&mut self) -> Result<Self::Root>;
 
     fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> Result<()>;
 }
