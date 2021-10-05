@@ -231,19 +231,19 @@ impl write::BsaWriter for V001 {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use crate::{
         Hash,
-        bin::{Readable, DataSource},
-        read::{BsaReader},
-        write::{BsaWriter, BsaDirSource, BsaFileSource},
+        bin::Readable,
+        read::BsaReader,
+        write::test as w_test,
         Version,
         v001,
     };
+    use super::*;
 
     #[test]
     fn writes_version() {
-        let mut bytes = bsa_bytes(some_bsa_dirs());
+        let mut bytes = w_test::bsa_bytes::<V001, _>(w_test::some_bsa_dirs());
 
         let v = Version::read0(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read version {}", err));
@@ -252,9 +252,9 @@ mod tests {
 
     #[test]
     fn writes_header() {
-        let mut bytes = bsa_bytes(some_bsa_dirs());
+        let mut bytes = w_test::bsa_bytes::<V001, _>(w_test::some_bsa_dirs());
 
-        let header = v001::Header::read0(&mut bytes)
+        let header = Header::read0(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
 
         assert_eq!(header.offset_hash_table, 16, "offset_hash_table");
@@ -263,8 +263,8 @@ mod tests {
 
     #[test]
     fn write_read_identity_bsa() {
-        let dirs = some_bsa_dirs();
-        let bytes = bsa_bytes(dirs.clone());
+        let dirs = w_test::some_bsa_dirs();
+        let bytes = w_test::bsa_bytes::<V001, _>(dirs.clone());
         let mut bsa = v001::read(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let files = bsa.list()
@@ -279,20 +279,5 @@ mod tests {
         bsa.extract(&files[0], &mut data)
             .unwrap_or_else(|err| panic!("could not extract data {}", err));
         assert_eq!(dirs[0].files[0].data, data, "file data");
-    }
-
-    fn some_bsa_dirs() -> Vec<BsaDirSource<Vec<u8>>> {
-        vec![
-            BsaDirSource::new("a".to_owned(), vec![
-                BsaFileSource::new("b".to_owned(), vec![1,2,3,4])
-            ])
-        ]
-    }
-
-    fn bsa_bytes<D: DataSource>(dirs: Vec<BsaDirSource<D>>) -> Cursor<Vec<u8>> {
-        let mut out = Cursor::new(Vec::<u8>::new());
-        v001::V001::write_bsa((), dirs, &mut out)
-            .unwrap_or_else(|err| panic!("could not write bsa {}", err));
-        Cursor::new(out.into_inner())
     }
 }

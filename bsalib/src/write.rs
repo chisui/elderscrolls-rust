@@ -63,3 +63,30 @@ pub fn list_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<BsaDirSource<PathBuf>>> {
     }
     Ok(res)
 }
+
+#[cfg(test)]
+pub(crate) mod test {
+    use std::io::Cursor;
+    use super::*;
+
+    pub fn some_bsa_dirs() -> Vec<BsaDirSource<Vec<u8>>> {
+        vec![
+            BsaDirSource::new("a".to_owned(), vec![
+                BsaFileSource::new("b".to_owned(), vec![1,2,3,4])
+            ])
+        ]
+    }
+
+    pub fn bsa_bytes<W: BsaWriter, D: DataSource>(dirs: Vec<BsaDirSource<D>>) -> Cursor<Vec<u8>>
+    where W::Options: Default {
+        let mut out = Cursor::new(Vec::<u8>::new());
+        W::write_bsa(W::Options::default(), dirs, &mut out)
+            .unwrap_or_else(|err| panic!("could not write bsa {}", err));
+        Cursor::new(out.into_inner())
+    }
+
+    pub fn some_bsa_bytes<W: BsaWriter>() -> Cursor<Vec<u8>>
+    where W::Options: Default {
+        bsa_bytes::<W, _>(some_bsa_dirs())
+    }
+}

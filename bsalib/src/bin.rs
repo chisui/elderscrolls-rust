@@ -224,3 +224,24 @@ impl DataSource for Vec<u8> {
         Ok(Cursor::new(self.to_vec()))
     }
 }
+
+#[cfg(test)]
+pub(crate) mod test {
+    use std::fmt::Debug;
+    use super::*;
+    
+    pub fn write_read_identity<A: Writable + Readable<Arg = ()> + Debug + Eq>(expected: A) {
+        let actual = write_read(&expected);
+
+        assert_eq!(expected, actual)
+    }
+
+    pub fn write_read<A: Writable + Readable<Arg = ()> + Debug>(val: &A) -> A {
+        let mut out = Cursor::new(Vec::<u8>::new());
+        val.write_here(&mut out)
+            .unwrap_or_else(|err| panic!("could not write {:?}: {}", val, err));
+        let mut input = Cursor::new(out.into_inner());
+        A::read_here0(&mut input)
+            .unwrap_or_else(|err| panic!("could not read {:?}: {}", val, err))
+    }
+}

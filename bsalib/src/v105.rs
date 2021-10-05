@@ -11,6 +11,7 @@ use super::{
     version::Version10X,
     hash::Hash,
     v10x::{self, V10XReader, V10XWriter, V10XWriterOptions, Versioned},
+    write,
 };
 pub use super::v104::{ArchiveFlag, Header};
 
@@ -64,6 +65,17 @@ pub type BsaWriter = V10XWriter<V105, ArchiveFlag, RawDirRecord>;
 pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;
 
 pub enum V105 {}
+impl write::BsaWriter for V105 {
+    type Options = <BsaWriter as write::BsaWriter>::Options;
+
+    fn write_bsa<DS, D, W>(opts: Self::Options, dirs: DS, out: W) -> Result<()>
+    where
+        D: crate::bin::DataSource,
+        DS: IntoIterator<Item = write::BsaDirSource<D>>,
+        W: Write + Seek {
+        BsaWriter::write_bsa(opts, dirs, out)
+    }
+}
 
 pub fn open<P>(path: P) -> Result<BsaReader<BufReader<File>>>
 where P: AsRef<Path> {
@@ -100,16 +112,15 @@ mod tests {
     use crate::{
         str::BZString,
         Hash,
-        bin::DataSource,
         read::{BsaReader},
-        write::{BsaWriter, BsaDirSource, BsaFileSource},
+        write::{BsaDirSource, test::*},
         version::{Version, Version10X},
         v105,
     };
 
     #[test]
     fn writes_version() {
-        let mut bytes = bsa_bytes(some_bsa_dirs());
+        let mut bytes = some_bsa_bytes::<V105>();
 
         let v = Version::read0(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read version {}", err));
@@ -118,7 +129,7 @@ mod tests {
 
     #[test]
     fn writes_header() {
-        let mut bytes = bsa_bytes(some_bsa_dirs());
+        let mut bytes = some_bsa_bytes::<V105>();
 
         let header = v105::Header::read0(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
@@ -136,7 +147,7 @@ mod tests {
 
     #[test]
     fn writes_dir_records() {
-        let mut bytes = bsa_bytes(some_bsa_dirs());
+        let mut bytes = some_bsa_bytes::<V105>();
 
         v105::Header::read0(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
@@ -151,7 +162,7 @@ mod tests {
 
     #[test]
     fn writes_dir_content_records() {
-        let mut bytes = bsa_bytes(some_bsa_dirs());
+        let mut bytes = some_bsa_bytes::<V105>();
 
 
         let header = v105::Header::read0(&mut bytes)
@@ -202,7 +213,7 @@ mod tests {
     }
 
     fn check_write_read_identity_bsa(dirs: Vec<BsaDirSource<Vec<u8>>>) {
-        let bytes = bsa_bytes(dirs.clone());
+        let bytes = bsa_bytes::<V105, _>(dirs.clone());
         let mut bsa = v105::BsaReader::read(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let in_dirs = bsa.list()
@@ -220,20 +231,5 @@ mod tests {
         bsa.extract(&in_dirs[0].files[0], &mut data)
             .unwrap_or_else(|err| panic!("could not extract data {}", err));
         assert_eq!(dirs[0].files[0].data, data, "file data");
-    }
-
-    fn some_bsa_dirs() -> Vec<BsaDirSource<Vec<u8>>> {
-        vec![
-            BsaDirSource::new("a".to_owned(), vec![
-                    BsaFileSource::new("b".to_owned(), vec![1,2,3,4])
-            ])
-        ]
-    }
-
-    fn bsa_bytes<D: DataSource>(dirs: Vec<BsaDirSource<D>>) -> Cursor<Vec<u8>> {
-        let mut out = Cursor::new(Vec::<u8>::new());
-        v105::BsaWriter::write_bsa(BsaWriterOptions::default(), dirs, &mut out)
-            .unwrap_or_else(|err| panic!("could not write bsa {}", err));
-        Cursor::new(out.into_inner())
     }
 }

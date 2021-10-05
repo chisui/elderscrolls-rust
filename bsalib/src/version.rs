@@ -128,8 +128,7 @@ impl bin::Readable for Version {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use crate::bin::{Readable, Writable};
+    use crate::bin::test::*;
     use super::*;
 
     #[test]
@@ -141,15 +140,7 @@ mod tests {
             Version::V10X(Version10X::V105), 
             Version::V200(12),
         ] {
-
-            let mut out = Cursor::new(Vec::<u8>::new());
-            v.write_here(&mut out)
-                .unwrap_or_else(|err| panic!("could not write {:#}: {}", v, err));
-            let mut input = Cursor::new(out.into_inner());
-            let v_in = Version::read_here0(&mut input)
-                .unwrap_or_else(|err| panic!("could not read {:#}: {}", v, err));
-            
-            assert_eq!(v, v_in);
+            write_read_identity(v)
         }
     }
 }

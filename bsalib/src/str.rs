@@ -192,6 +192,7 @@ fn check_len(s: &str, max_len: usize) -> Result<(), StrError> {
 mod tests {
     use std::fmt::Debug;
     use super::*;
+    use crate::bin::test::*;
  
     #[test]
     fn write_read_identity_bstring_zero_len() {
@@ -239,21 +240,5 @@ mod tests {
             Err(StrError::TooLong(l)) => assert_eq!(max_len, l, "max_len"),
             res  => panic!("expected String too long error but got error but got {:?}", res),
         };
-    }
-
-    fn write_read_identity<A: Writable + Readable<Arg = ()> + Debug + Eq>(expected: A) {
-        let actual = write_read(&expected);
-
-        assert_eq!(expected, actual)
-    }
-
-    fn write_read<A: Writable + Readable<Arg = ()> + Debug>(val: &A) -> A {
-        use std::io::Cursor;
-        let mut out = Cursor::new(Vec::<u8>::new());
-        val.write_here(&mut out)
-            .unwrap_or_else(|err| panic!("could not write {:?}: {}", val, err));
-        let mut input = Cursor::new(out.into_inner());
-        A::read_here0(&mut input)
-            .unwrap_or_else(|err| panic!("could not read {:?}: {}", val, err))
     }
 }
