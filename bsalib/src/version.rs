@@ -27,9 +27,9 @@ pub enum Unknown {
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Version10X {
-    V103 = 103, // TES4
-    V104 = 104, // F3, FNV, TES5
-    V105 = 105, // TES5se
+    V103 = 103,
+    V104 = 104,
+    V105 = 105,
 }
 impl Version10X {
     pub fn read<R: Read + Seek>(&self, reader: R) -> Result<crate::SomeBsaReader<R>> {

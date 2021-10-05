@@ -40,7 +40,7 @@ pub trait ToArchiveBitFlags: BitFlag + fmt::Debug {
 
 #[bitflags]
 #[repr(u16)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FileFlag {
     Meshes = 0x1,
     Textures = 0x2,

@@ -1,7 +1,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    io::{Result, Write, Seek},
+    io::{self, Write, Seek},
 };
 use super::bin::DataSource;
 
@@ -29,14 +29,16 @@ impl<D> BsaFileSource<D> {
 }
 pub trait BsaWriter {
     type Options;
-    fn write_bsa<DS, D, W>(opts: Self::Options, dirs: DS, out: W) -> Result<()>
+    type Err = io::Error;
+
+    fn write_bsa<DS, D, W>(opts: Self::Options, dirs: DS, out: W) -> Result<(), Self::Err>
     where
         D: DataSource,
         DS: IntoIterator<Item = BsaDirSource<D>>,
         W: Write + Seek;
 }
 
-pub fn list_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<BsaDirSource<PathBuf>>> {
+pub fn list_dir<P: AsRef<Path>>(dir: P) -> io::Result<Vec<BsaDirSource<PathBuf>>> {
     let mut stack = vec![PathBuf::new()];
     let mut res = vec![];
     while let Some(path) = stack.pop() {
@@ -66,7 +68,8 @@ pub fn list_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<BsaDirSource<PathBuf>>> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use std::io::Cursor;
+    use std::{io::Cursor, fmt::Display};
+
     use super::*;
 
     pub fn some_bsa_dirs() -> Vec<BsaDirSource<Vec<u8>>> {
@@ -78,7 +81,10 @@ pub(crate) mod test {
     }
 
     pub fn bsa_bytes<W: BsaWriter, D: DataSource>(dirs: Vec<BsaDirSource<D>>) -> Cursor<Vec<u8>>
-    where W::Options: Default {
+    where
+        W::Options: Default,
+        W::Err: Display,
+    {
         let mut out = Cursor::new(Vec::<u8>::new());
         W::write_bsa(W::Options::default(), dirs, &mut out)
             .unwrap_or_else(|err| panic!("could not write bsa {}", err));
@@ -86,7 +92,10 @@ pub(crate) mod test {
     }
 
     pub fn some_bsa_bytes<W: BsaWriter>() -> Cursor<Vec<u8>>
-    where W::Options: Default {
+    where
+        W::Options: Default,
+        W::Err: Display,
+    {
         bsa_bytes::<W, _>(some_bsa_dirs())
     }
 }

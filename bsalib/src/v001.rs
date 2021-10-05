@@ -1,5 +1,6 @@
 use std::{
-    io::{BufReader, Read, Write, Seek, SeekFrom, Result, copy, Error, ErrorKind},
+    io::{self, BufReader, Read, Write, Seek, SeekFrom, copy},
+    collections::BTreeMap,
     mem::size_of,
     path::Path,
     fs::File,
@@ -8,23 +9,23 @@ use std::{
 use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 
-use crate::{
-    bin::{
+use crate::{Hash, Version, bin::{
         read_struct, Readable, Writable, DataSource, Positioned,
         derive_readable_via_pod, derive_writable_via_pod,
-    },
-    Hash,
-    Version,
-    read::{self, BsaFile},
-    write::{self, BsaDirSource},
-    magicnumber::MagicNumber,
-    str::ZString,
-};
+    }, magicnumber::MagicNumber, read::{self, BsaFile}, str::{StrError, ZString}, write::{self, BsaDirSource}};
 
 
 #[derive(Debug, Error)]
-#[error("v001 does not support compression")]
-pub struct CompressionNotSupported;
+pub enum V001WriteError {
+    #[error("v001 does not support compression")]
+    CompressionNotSupported,
+    #[error("v001 requires unique hashes. {0} and {1} have the same hash: {}", Hash::v001(.0))]
+    HashCollision(String, String),
+    #[error("{0}")]
+    IO(#[from] io::Error),
+    #[error("{1}: \"{0}\"")]
+    StrErr(String, StrError),
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -42,7 +43,7 @@ impl Readable for Header {
     fn offset(_: &()) -> Option<usize> {
         Some(size_of::<MagicNumber>())
     }
-    fn read_here<R: Read + Seek>(reader: R, _: &()) -> Result<Self> {
+    fn read_here<R: Read + Seek>(reader: R, _: &()) -> io::Result<Self> {
         read_struct(reader)
     }
 }
@@ -76,7 +77,7 @@ pub struct BsaReader<R> {
     pub files: Option<Vec<BsaFile>>,
 }
 impl<R: Read + Seek> BsaReader<R> {
-    fn files(&mut self) -> Result<Vec<BsaFile>> {
+    fn files(&mut self) -> io::Result<Vec<BsaFile>> {
         let file_count = self.header.file_count as usize;
         self.reader.seek(SeekFrom::Start(offset_after_header()))?;
         
@@ -106,13 +107,13 @@ impl<R: Read + Seek> BsaReader<R> {
             .collect()
     }
 }
-pub fn open<P>(path: P) -> Result<BsaReader<BufReader<File>>>
+pub fn open<P>(path: P) -> io::Result<BsaReader<BufReader<File>>>
 where P: AsRef<Path> {
     let file = File::open(path)?;
     let buf = BufReader::new(file);
     read(buf)
 }
-pub fn read<R>(mut reader: R) -> Result<BsaReader<R>>
+pub fn read<R>(mut reader: R) -> io::Result<BsaReader<R>>
 where R: Read + Seek {
     let header = Header::read0(&mut reader)?;
     Ok(BsaReader {
@@ -127,7 +128,7 @@ where R: Read + Seek {
     type Root = Vec<BsaFile>;
     
     fn header(&self) -> Header { self.header }
-    fn list(&mut self) -> Result<Vec<BsaFile>> {
+    fn list(&mut self) -> io::Result<Vec<BsaFile>> {
         if let Some(files) = &self.files {
             Ok(files.to_vec())
         } else {
@@ -136,7 +137,7 @@ where R: Read + Seek {
             Ok(files)
         }
     }
-    fn extract<W: Write>(&mut self, file: &BsaFile, mut out: W) -> Result<()> {
+    fn extract<W: Write>(&mut self, file: &BsaFile, mut out: W) -> io::Result<()> {
         self.reader.seek(SeekFrom::Start(file.offset))?;
         let mut data = (&mut self.reader).take(file.size as u64);
         copy(&mut data, &mut out)?;
@@ -145,8 +146,9 @@ where R: Read + Seek {
 }
 impl write::BsaWriter for V001 {
     type Options = ();
+    type Err = V001WriteError;
     
-    fn write_bsa<DS, D, W>(_: (), dirs: DS, mut out: W) -> Result<()>
+    fn write_bsa<DS, D, W>(_: (), dirs: DS, mut out: W) -> Result<(), V001WriteError>
     where
         DS: IntoIterator<Item = BsaDirSource<D>>,
         D: DataSource,
@@ -158,17 +160,21 @@ impl write::BsaWriter for V001 {
         }
 
         let mut offset_hash_table: u32 = 0;
-        let mut files: Vec<OutFile<D>> = Vec::new();
+        let mut files: BTreeMap<Hash, OutFile<D>> = BTreeMap::new();
         for dir in dirs {
             for file in dir.files {
                 if file.compressed == Some(true) {
-                    return Err(Error::new(ErrorKind::InvalidInput, CompressionNotSupported))
+                    return Err(V001WriteError::CompressionNotSupported)
                 }
                 let name = format!("{}\\{}",
                     dir.name.to_lowercase(),
                     file.name.to_lowercase());
                 offset_hash_table += (size_of::<FileRecord>() + size_of::<u32>() + name.len() + 1) as u32;
-                files.push(OutFile {
+                let hash = Hash::v001(&name);
+                if let Some(other) = files.get(&hash) {
+                    return Err(V001WriteError::HashCollision(name, other.name.clone()))
+                }
+                files.insert(hash, OutFile {
                     name,
                     data: file.data,
                 });
@@ -195,17 +201,18 @@ impl write::BsaWriter for V001 {
             name_offsets.push(Positioned::new(0, &mut out)?);
         }
         let offset_names_start = offset_names_start(files.len() as u64) as u32;
-        for (name_offset, file) in name_offsets.iter_mut().zip(&files) {
+        for (name_offset, (_, file)) in name_offsets.iter_mut().zip(&files) {
             name_offset.data = out.stream_position()? as u32 - offset_names_start;
             println!("write name at {}", name_offset.data);
-            let name = ZString::new(&file.name)?;
+            let name = ZString::new(&file.name)
+                .map_err(|err| V001WriteError::StrErr(file.name.clone(), err))?;
             name.write_here(&mut out)?;
             name_offset.update(&mut out)?;
         }
-        for file in &files {
-            Hash::v001(&file.name).write_here(&mut out)?;
+        for (hash, _) in &files {
+            hash.write_here(&mut out)?;
         }
-        for (rec, file) in recs.iter_mut().zip(&files) {
+        for (rec, (_, file)) in recs.iter_mut().zip(&files) {
             let pos = out.stream_position()? as u32;
             println!("write file data at: {}", pos);
             rec.data.offset = pos - offset_after_index(&header) as u32;
