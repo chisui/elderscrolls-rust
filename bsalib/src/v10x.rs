@@ -18,6 +18,7 @@ use crate::{
     read::{BsaReader, BsaDir, BsaFile},
     write::{BsaWriter, BsaDirSource, BsaFileSource},
 };
+use crate::{derive_readable_via_pod, derive_writable_via_pod};
 
 
 pub trait ToArchiveBitFlags: BitFlag + fmt::Debug {
@@ -344,13 +345,8 @@ pub struct DirRecord {
     pub file_count: u32,
     pub offset: u32,
 }
-impl Readable for DirRecord {}
-impl Writable for DirRecord {
-    fn size(&self) -> usize { size_of::<Self>() }
-    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        bin::write_struct(self, writer)
-    }
-}
+derive_readable_via_pod!(DirRecord);
+derive_writable_via_pod!(DirRecord);
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -369,13 +365,8 @@ impl FileRecord {
         self.size & bit_mask
     }
 }
-impl Readable for FileRecord {}
-impl Writable for FileRecord {
-    fn size(&self) -> usize { size_of::<Self>() }
-    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        bin::write_struct(self, writer)
-    }
-}
+derive_readable_via_pod!(FileRecord);
+derive_writable_via_pod!(FileRecord);
 
 
 #[derive(Debug)]

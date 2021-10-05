@@ -9,7 +9,7 @@ use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 
 use crate::{
-    bin::{read_struct, write_struct, Readable, Writable, DataSource, Positioned},
+    bin::{read_struct, Readable, Writable, DataSource, Positioned},
     Hash,
     Version,
     read::{self, BsaFile},
@@ -17,6 +17,7 @@ use crate::{
     magicnumber::MagicNumber,
     str::ZString,
 };
+use crate::{derive_readable_via_pod, derive_writable_via_pod};
 
 
 #[derive(Debug, Error)]
@@ -43,14 +44,8 @@ impl Readable for Header {
         read_struct(reader)
     }
 }
-impl Writable for Header {
-    fn size(&self) -> usize {
-        size_of::<Self>()
-    }
-    fn write_here<W: Write>(&self, out: W) -> Result<()> {
-        write_struct(self, out)
-    }
-}
+derive_writable_via_pod!(Header);
+
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -58,17 +53,9 @@ struct FileRecord {
     pub size: u32,
     pub offset: u32,
 }
-impl Readable for FileRecord {
-    fn read_here<R: Read + Seek>(reader: R, _: &()) -> Result<Self> {
-        read_struct(reader)
-    }
-}
-impl Writable for FileRecord {
-    fn size(&self) -> usize { size_of::<FileRecord>() }
-    fn write_here<W: Write>(&self, out: W) -> Result<()> {
-        write_struct(self, out)
-    }
-}
+derive_readable_via_pod!(FileRecord);
+derive_writable_via_pod!(FileRecord);
+
 
 const fn offset_after_header() -> u64 {
     (size_of::<MagicNumber>() + size_of::<Header>()) as u64

@@ -8,10 +8,10 @@ rust library and cli tool for creating and extracting Bethesda Softworks Archive
 
 ## Support
 
-| Version | List | Extract | Create | Games using this version                    |
-| ------- | ---- | ------- | ------ | ------------------------------------------- |
-| 001     | ✔️    | ✔️       | :x:    | Tes3 Morrowind                              |
-| 103     | ✔️    | ✔️       | ✔️      | Tes4 Oblivion                               |
-| 104     | ✔️    | ✔️       | ✔️      | Tes5 Skyrim, Fallout: 4, Fallout: New Vegas |
-| 105     | ✔️    | ✔️       | ✔️      | Tes5 Skyrim SE                              |
-| 200     | :x:  | :x:     | :x:    | Fallout 4, Fallout 76                       |
+| Version      | List | Extract | Create | Games using this version                    |
+| ------------ | ---- | ------- | ------ | ------------------------------------------- |
+| 001          | ✔️    | ✔️       | :x:    | Tes3 Morrowind                              |
+| 103          | ✔️    | ✔️       | ✔️      | Tes4 Oblivion                               |
+| 104          | ✔️    | ✔️       | ✔️      | Tes5 Skyrim, Fallout: 4, Fallout: New Vegas |
+| 105          | ✔️    | ✔️       | ✔️      | Tes5 Skyrim SE                              |
+| 200 (`.ba2`) | :x:  | :x:     | :x:    | Fallout 4, Fallout 76                       |

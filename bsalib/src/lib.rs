@@ -15,10 +15,10 @@ pub mod v105;
 
 use std::{
     io::{BufReader, Read, Seek, Write, Result},
-    fmt,
     fs::File,
     path::Path,
 };
+use thiserror::Error;
 
 use crate::{
     read::{BsaReader, BsaDir, BsaFile},
@@ -34,11 +34,12 @@ pub use crate::{
     v105::V105,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error)]
 pub enum ForSomeBsaVersion<A001, A103, A104, A105> {
-    V001(A001),
-    V103(A103),
-    V104(A104),
-    V105(A105),
+    #[error("{0}")] V001(A001),
+    #[error("{0}")] V103(A103),
+    #[error("{0}")] V104(A104),
+    #[error("{0}")] V105(A105),
 }
 impl<A001, A103, A104, A105> ForSomeBsaVersion<A001, A103, A104, A105> {
 
@@ -48,22 +49,6 @@ impl<A001, A103, A104, A105> ForSomeBsaVersion<A001, A103, A104, A105> {
             ForSomeBsaVersion::V103(_) => Version::V10X(Version10X::V103),
             ForSomeBsaVersion::V104(_) => Version::V10X(Version10X::V104),
             ForSomeBsaVersion::V105(_) => Version::V10X(Version10X::V105),
-        }
-    }
-}
-impl<A001, A103, A104, A105> fmt::Display for ForSomeBsaVersion<A001, A103, A104, A105> 
-where
-    A001: fmt::Display,
-    A103: fmt::Display,
-    A104: fmt::Display,
-    A105: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ForSomeBsaVersion::V001(a) => a.fmt(f),
-            ForSomeBsaVersion::V103(a) => a.fmt(f),
-            ForSomeBsaVersion::V104(a) => a.fmt(f),
-            ForSomeBsaVersion::V105(a) => a.fmt(f),
         }
     }
 }

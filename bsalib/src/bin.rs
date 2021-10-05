@@ -1,9 +1,7 @@
 use std::{
     io::{Read, Write, Seek, SeekFrom, Result, Cursor},
     path,
-    fs,
-    mem::size_of,
-    fmt,
+    fs
 };
 use bytemuck::Pod;
 
@@ -21,10 +19,7 @@ pub fn write_struct<S: Pod, W: Write>(val: &S, mut writer: W) -> Result<()> {
 }
 
 
-pub trait Readable: Sized
-where
-    Self::Arg: Copy
-{
+pub trait Readable: Sized {
     type Arg = ();
 
     fn offset0() -> Option<usize> 
@@ -69,71 +64,64 @@ where
         Ok(vals)
     }
 }
-default impl<T: Sized + fmt::Debug + Pod> Readable for T {
-    fn read_here<R: Read + Seek>(reader: R, _: &Self::Arg) -> Result<Self> {
-        read_struct(reader)
-    }
+
+#[macro_export]
+macro_rules! derive_readable_via_pod {
+    ( $t:ty ) => {
+        impl crate::bin::Readable for $t {
+            fn read_here<R: std::io::Read + std::io::Seek>(reader: R, _: &<Self as crate::bin::Readable>::Arg) -> std::io::Result<Self> {
+                crate::bin::read_struct(reader)
+            }
+        }
+    };
 }
-impl Readable for u8  {}
-impl Readable for u16 {}
-impl Readable for u32 {}
-impl Readable for u64 {}
+derive_readable_via_pod!(u8);
+derive_readable_via_pod!(u16);
+derive_readable_via_pod!(u32);
+derive_readable_via_pod!(u64);
 
 pub trait Writable {
     fn size(&self) -> usize;
 
     fn write_here<W: Write>(&self, writer: W) -> Result<()>;
 }
-impl Writable for u8  {
-    fn size(&self) -> usize { size_of::<Self>() }
-    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        write_struct(self, writer)
-    }
-}
-impl Writable for u16 {
-    fn size(&self) -> usize { size_of::<Self>() }
-    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        write_struct(self, writer)
-    }
-}
-impl Writable for u32 {
-    fn size(&self) -> usize { size_of::<Self>() }
-    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        write_struct(self, writer)
-    }
-}
-impl Writable for u64 {
-    fn size(&self) -> usize { size_of::<Self>() }
-    fn write_here<W: Write>(&self, writer: W) -> Result<()> {
-        write_struct(self, writer)
-    }
-}
-impl<A: Writable> Writable for Vec<A> {
-    fn size(&self) -> usize {
-        self.into_iter()
-            .map(|a| a.size())
-            .sum()
-    }
-    fn write_here<W: Write>(&self, mut out: W) -> Result<()> {
-        for a in self {
-            a.write_here(&mut out)?;
+
+#[macro_export]
+macro_rules! derive_writable_via_pod {
+    ( $t:ty ) => {
+        impl crate::bin::Writable for $t {
+            fn size(&self) -> usize { std::mem::size_of::<Self>() }
+            fn write_here<W: std::io::Write>(&self, writer: W) -> std::io::Result<()> {
+                crate::bin::write_struct(self, writer)
+            }
         }
-        Ok(())
-    }
+    };
 }
-impl<A: Writable> Writable for Option<A> {
-    fn size(&self) -> usize {
-        self.into_iter()
-            .map(|a| a.size())
-            .sum()
-    }
-    fn write_here<W: Write>(&self, mut out: W) -> Result<()> {
-        for a in self {
-            a.write_here(&mut out)?;
+derive_writable_via_pod!(u8);
+derive_writable_via_pod!(u16);
+derive_writable_via_pod!(u32);
+derive_writable_via_pod!(u64);
+
+#[macro_export]
+macro_rules! derive_writable_via_into_iter {
+    ( $t:tt ) => {
+        impl<A: Writable> Writable for $t<A> {
+            fn size(&self) -> usize {
+                self.into_iter()
+                    .map(|a| a.size())
+                    .sum()
+            }
+            fn write_here<W: std::io::Write>(&self, mut out: W) -> std::io::Result<()> {
+                for a in self {
+                    a.write_here(&mut out)?;
+                }
+                Ok(())
+            }
         }
-        Ok(())
-    }
+    };
 }
+derive_writable_via_into_iter!(Vec);
+derive_writable_via_into_iter!(Option);
 
 pub fn size_many<I: IntoIterator>(vals: I) -> usize
 where I::Item: Writable {
