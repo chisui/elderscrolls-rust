@@ -7,8 +7,7 @@ let pkgs = import sources.nixpkgs {
 in with pkgs;
 let
   rust-channel = rustChannelOf {
-    date = "2021-08-15";
-    channel = "nightly";
+    rustToolChain = ./rust-toolchain;
   };
 in mkShell {
   name = "bsa";
