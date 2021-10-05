@@ -127,11 +127,11 @@ where R: Read + Seek {
     type Root = Vec<BsaFile>;
     
     fn header(&self) -> Header { self.header }
-    fn dirs(&mut self) -> Result<Vec<BsaFile>> {
+    fn list(&mut self) -> Result<Vec<BsaFile>> {
         if let Some(files) = &self.files {
             Ok(files.to_vec())
         } else {
-            let files =self.files()?;
+            let files = self.files()?;
             self.files = Some(files.to_vec());
             Ok(files)
         }
@@ -255,7 +255,7 @@ mod tests {
         let bytes = bsa_bytes(dirs.clone());
         let mut bsa = v001::read(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
-        let files = bsa.dirs()
+        let files = bsa.list()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));
 
     

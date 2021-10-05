@@ -205,7 +205,7 @@ mod tests {
         let bytes = bsa_bytes(dirs.clone());
         let mut bsa = v105::BsaReader::read(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
-        let in_dirs = bsa.dirs()
+        let in_dirs = bsa.list()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));
 
 

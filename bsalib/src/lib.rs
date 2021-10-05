@@ -98,12 +98,12 @@ impl<R: Read + Seek> BsaReader for SomeBsaReader<R> {
         }
     }
 
-    fn dirs(&mut self) -> Result<SomeBsaRoot> {
+    fn list(&mut self) -> Result<SomeBsaRoot> {
         match self {
-            SomeBsaReader::V001(bsa) => bsa.dirs().map(SomeBsaRoot::Files),
-            SomeBsaReader::V103(bsa) => bsa.dirs().map(SomeBsaRoot::Dirs),
-            SomeBsaReader::V104(bsa) => bsa.dirs().map(SomeBsaRoot::Dirs),
-            SomeBsaReader::V105(bsa) => bsa.dirs().map(SomeBsaRoot::Dirs),
+            SomeBsaReader::V001(bsa) => bsa.list().map(SomeBsaRoot::Files),
+            SomeBsaReader::V103(bsa) => bsa.list().map(SomeBsaRoot::Dirs),
+            SomeBsaReader::V104(bsa) => bsa.list().map(SomeBsaRoot::Dirs),
+            SomeBsaReader::V105(bsa) => bsa.list().map(SomeBsaRoot::Dirs),
         }
     }
 

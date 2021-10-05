@@ -59,7 +59,7 @@ impl Cmd for Info {
 impl Cmd for List {
     fn exec(&self) -> Result<()> {
         let mut bsa = open(&self.file, &self.overrides)?;
-        match bsa.dirs()? {
+        match bsa.list()? {
             SomeBsaRoot::Dirs(dirs) => {
                 for dir in &dirs {
                     for file in dir {
@@ -129,7 +129,7 @@ impl Cmd for Extract {
         
         let mut bsa = open(&self.file, &self.overrides)?;
 
-        match bsa.dirs()? {
+        match bsa.list()? {
             SomeBsaRoot::Dirs(dirs) => {
                 for dir in dirs {
                     for file in &dir {

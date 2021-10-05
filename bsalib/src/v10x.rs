@@ -297,7 +297,7 @@ where
         self.header
     }
 
-    fn dirs(&mut self) -> Result<Vec<BsaDir>> {
+    fn list(&mut self) -> Result<Vec<BsaDir>> {
         if let Some(dirs) = &self.dirs {
             Ok(dirs.to_vec())
         } else {

@@ -69,7 +69,7 @@ pub trait BsaReader: Sized {
 
     fn header(&self) -> Self::Header;
 
-    fn dirs(&mut self) -> Result<Self::Root>;
+    fn list(&mut self) -> Result<Self::Root>;
 
     fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> Result<()>;
 }
