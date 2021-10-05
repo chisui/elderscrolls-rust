@@ -1,7 +1,7 @@
 #![allow(incomplete_features)]
 #![feature(associated_type_defaults, wrapping_int_impl, specialization)]
 #[macro_use]
-pub mod bin;
+mod bin;
 pub mod read;
 pub mod write;
 pub mod str;

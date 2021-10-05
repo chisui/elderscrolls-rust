@@ -1,26 +1,23 @@
-use std::{
-    io::{Read, Seek, SeekFrom, Result, Write, copy},
-    collections::HashMap,
-    marker::PhantomData,
-    mem::size_of,
-    str::{self, FromStr},
-    fmt,
-};
+use std::io::{Read, Seek, SeekFrom, Result, Write, copy};
+use std::collections::HashMap;
+use std::marker::PhantomData;
+use std::mem::size_of;
+use std::str::{self, FromStr};
+use std::fmt;
 use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
-use crate::{
-    bin::{
-        self, read_struct, Readable, Writable, Positioned, DataSource,
-        derive_readable_via_pod, derive_writable_via_pod,
-    },
-    str::{BZString, BString, ZString},
-    Hash,
-    version::{Version, Version10X},
-    magicnumber::MagicNumber,
-    read::{BsaReader, BsaDir, BsaFile},
-    write::{BsaWriter, BsaDirSource, BsaFileSource},
+use crate::bin::{
+    self,
+    derive_readable_via_pod, derive_writable_via_pod,
+    read_struct, Readable, Writable, Positioned, DataSource,
 };
+use crate::str::{BZString, BString, ZString};
+use crate::Hash;
+use crate::version::{Version, Version10X};
+use crate::magicnumber::MagicNumber;
+use crate::read::{BsaReader, BsaDir, BsaFile};
+use crate::write::{BsaWriter, BsaDirSource, BsaFileSource};
 
 
 pub trait ToArchiveBitFlags: BitFlag + fmt::Debug {
@@ -87,7 +84,7 @@ impl<AF: ToArchiveBitFlags + std::cmp::PartialEq> Eq for V10XHeader<AF> {}
 impl<AF: ToArchiveBitFlags> Default for V10XHeader<AF> {
     fn default() -> Self {
         let mut h: Self = RawHeader::zeroed().into();
-        h.offset = (size_of::<MagicNumber>() + size_of::<u32>() + size_of::<RawHeader>()) as u32;
+        h.offset = size_of::<(MagicNumber, u32, RawHeader)>() as u32;
         h
     }
 }
@@ -159,7 +156,7 @@ impl<AF: ToArchiveBitFlags> Has<FileFlag> for V10XHeader<AF> {
 }
 impl<AF: ToArchiveBitFlags + fmt::Debug> bin::Readable for V10XHeader<AF> {
     fn offset(_: &()) -> Option<usize> {
-        Some(size_of::<MagicNumber>() + size_of::<Version10X>())
+        Some(size_of::<(MagicNumber, Version10X)>())
     }
     fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> Result<V10XHeader<AF>> {
         bin::read_struct::<RawHeader, _>(&mut reader)
@@ -230,7 +227,7 @@ where
     }
 
     fn offset_after_header(&self) -> usize {
-        size_of::<MagicNumber>() + size_of::<Version10X>() + size_of::<RawHeader>()
+        size_of::<(MagicNumber, Version10X, RawHeader)>()
     }
 
     fn read_file_names(&mut self) -> Result<HashMap<Hash, ZString>> {

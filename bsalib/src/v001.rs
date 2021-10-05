@@ -61,10 +61,10 @@ derive_writable_via_pod!(FileRecord);
 
 
 const fn offset_after_header() -> u64 {
-    (size_of::<MagicNumber>() + size_of::<Header>()) as u64
+    size_of::<(MagicNumber, Header)>() as u64
 }
 const fn offset_names_start(file_count: u64) -> u64 {
-    offset_after_header() + (file_count * (size_of::<FileRecord>() + size_of::<u32>()) as u64)
+    offset_after_header() + (file_count * size_of::<(FileRecord, u32)>() as u64)
 }
 const fn offset_after_index(header: &Header) -> u64 {
     offset_after_header() + header.offset_hash_table as u64 + (size_of::<Hash>() * header.file_count as usize) as u64
@@ -169,7 +169,7 @@ impl write::BsaWriter for V001 {
                 let name = format!("{}\\{}",
                     dir.name.to_lowercase(),
                     file.name.to_lowercase());
-                offset_hash_table += (size_of::<FileRecord>() + size_of::<u32>() + name.len() + 1) as u32;
+                offset_hash_table += (size_of::<(FileRecord, u32)>() + name.len() + 1) as u32;
                 let hash = Hash::v001(&name);
                 if let Some(other) = files.get(&hash) {
                     return Err(V001WriteError::HashCollision(name, other.name.clone()))

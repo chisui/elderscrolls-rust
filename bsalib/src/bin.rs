@@ -122,10 +122,6 @@ pub(crate) use derive_writable_via_into_iter;
 derive_writable_via_into_iter!(Vec);
 derive_writable_via_into_iter!(Option);
 
-pub fn size_many<I: IntoIterator>(vals: I) -> usize
-where I::Item: Writable {
-    vals.into_iter().map(|val| val.size()).sum()
-}
 
 pub fn write_many<I: IntoIterator, W: Write>(vals: I, mut writer: W) -> Result<()>
 where I::Item: Writable {
@@ -162,15 +158,6 @@ impl<A: Writable> Positioned<A> {
         self.data.write_here(&mut out)?;
         out.seek(SeekFrom::Start(tmp_pos))?;
         Ok(())
-    }
-
-    pub fn map<F, W>(&mut self, out: W, f: F) -> Result<()>
-    where
-        F: FnOnce(&A) -> Result<A>,
-        W: Write + Seek
-    {
-        self.data = f(&self.data)?;
-        self.update(out)
     }
 }
 impl<A: Readable> Readable for Positioned<A> {
