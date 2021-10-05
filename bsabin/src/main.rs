@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use bsalib::{
     self,
-    SomeBsaHeader, SomeBsaReader, SomeBsaRoot,
+    ForSomeBsaVersion, SomeBsaReader, SomeBsaRoot,
     Version, Version10X,
     read::{BsaReader, BsaEntry, EntryId},
     write::{BsaWriter, list_dir},
@@ -46,10 +46,10 @@ impl Cmd for Info {
             println!("{}", bsa.header());
         } else {
             match bsa.header() {
-                SomeBsaHeader::V001(h) => println!("{}", h),
-                SomeBsaHeader::V103(h) => println!("{}", Sparse(h)),
-                SomeBsaHeader::V104(h) => println!("{}", Sparse(h)),
-                SomeBsaHeader::V105(h) => println!("{}", Sparse(h)),
+                ForSomeBsaVersion::V001(h) => println!("{}", h),
+                ForSomeBsaVersion::V103(h) => println!("{}", Sparse(h)),
+                ForSomeBsaVersion::V104(h) => println!("{}", Sparse(h)),
+                ForSomeBsaVersion::V105(h) => println!("{}", Sparse(h)),
             }
         }
         Ok(())

@@ -34,40 +34,42 @@ pub use crate::{
     v105::V105,
 };
 
-pub enum SomeBsaHeader {
-    V001(v001::Header),
-    V103(v103::Header),
-    V104(v104::Header),
-    V105(v105::Header),
+pub enum ForSomeBsaVersion<A001, A103, A104, A105> {
+    V001(A001),
+    V103(A103),
+    V104(A104),
+    V105(A105),
 }
-impl fmt::Display for SomeBsaHeader {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SomeBsaHeader::V001(header) => header.fmt(f),
-            SomeBsaHeader::V103(header) => header.fmt(f),
-            SomeBsaHeader::V104(header) => header.fmt(f),
-            SomeBsaHeader::V105(header) => header.fmt(f),
-        }
-    }
-}
-
-pub enum SomeBsaReader<R> {
-    V001(v001::BsaReader<R>),
-    V103(v103::BsaReader<R>),
-    V104(v104::BsaReader<R>),
-    V105(v105::BsaReader<R>),
-}
-impl<R> SomeBsaReader<R> {
+impl<A001, A103, A104, A105> ForSomeBsaVersion<A001, A103, A104, A105> {
 
     pub fn version(&self) -> Version {
         match self {
-            SomeBsaReader::V001(_) => Version::V001,
-            SomeBsaReader::V103(_) => Version::V10X(Version10X::V103),
-            SomeBsaReader::V104(_) => Version::V10X(Version10X::V104),
-            SomeBsaReader::V105(_) => Version::V10X(Version10X::V105),
+            ForSomeBsaVersion::V001(_) => Version::V001,
+            ForSomeBsaVersion::V103(_) => Version::V10X(Version10X::V103),
+            ForSomeBsaVersion::V104(_) => Version::V10X(Version10X::V104),
+            ForSomeBsaVersion::V105(_) => Version::V10X(Version10X::V105),
         }
     }
 }
+impl<A001, A103, A104, A105> fmt::Display for ForSomeBsaVersion<A001, A103, A104, A105> 
+where
+    A001: fmt::Display,
+    A103: fmt::Display,
+    A104: fmt::Display,
+    A105: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ForSomeBsaVersion::V001(a) => a.fmt(f),
+            ForSomeBsaVersion::V103(a) => a.fmt(f),
+            ForSomeBsaVersion::V104(a) => a.fmt(f),
+            ForSomeBsaVersion::V105(a) => a.fmt(f),
+        }
+    }
+}
+
+pub type SomeBsaHeader = ForSomeBsaVersion<v001::Header, v103::Header, v104::Header, v105::Header>;
+pub type SomeBsaReader<R> = ForSomeBsaVersion<v001::BsaReader<R>, v103::BsaReader<R>, v104::BsaReader<R>, v105::BsaReader<R>>;
 
 pub fn open<P>(path: P) -> Result<SomeBsaReader<BufReader<File>>>
 where P: AsRef<Path> {
@@ -85,34 +87,40 @@ pub enum SomeBsaRoot {
     Dirs(Vec<BsaDir>),
     Files(Vec<BsaFile>),
 }
-impl<R: Read + Seek> BsaReader for SomeBsaReader<R> {
+impl<A001, A103, A104, A105> BsaReader for ForSomeBsaVersion<A001, A103, A104, A105> 
+where
+    A001: BsaReader<Header = v001::Header, Root = Vec<BsaFile>>,
+    A103: BsaReader<Header = v103::Header, Root = Vec<BsaDir>>,
+    A104: BsaReader<Header = v104::Header, Root = Vec<BsaDir>>,
+    A105: BsaReader<Header = v105::Header, Root = Vec<BsaDir>>,
+{
     type Header = SomeBsaHeader;
     type Root = SomeBsaRoot;
 
     fn header(&self) -> Self::Header {
         match self {
-            SomeBsaReader::V001(bsa) => SomeBsaHeader::V001(bsa.header()),
-            SomeBsaReader::V103(bsa) => SomeBsaHeader::V103(bsa.header()),
-            SomeBsaReader::V104(bsa) => SomeBsaHeader::V104(bsa.header()),
-            SomeBsaReader::V105(bsa) => SomeBsaHeader::V105(bsa.header()),
+            ForSomeBsaVersion::V001(bsa) => SomeBsaHeader::V001(bsa.header()),
+            ForSomeBsaVersion::V103(bsa) => SomeBsaHeader::V103(bsa.header()),
+            ForSomeBsaVersion::V104(bsa) => SomeBsaHeader::V104(bsa.header()),
+            ForSomeBsaVersion::V105(bsa) => SomeBsaHeader::V105(bsa.header()),
         }
     }
 
     fn list(&mut self) -> Result<SomeBsaRoot> {
         match self {
-            SomeBsaReader::V001(bsa) => bsa.list().map(SomeBsaRoot::Files),
-            SomeBsaReader::V103(bsa) => bsa.list().map(SomeBsaRoot::Dirs),
-            SomeBsaReader::V104(bsa) => bsa.list().map(SomeBsaRoot::Dirs),
-            SomeBsaReader::V105(bsa) => bsa.list().map(SomeBsaRoot::Dirs),
+            ForSomeBsaVersion::V001(bsa) => bsa.list().map(SomeBsaRoot::Files),
+            ForSomeBsaVersion::V103(bsa) => bsa.list().map(SomeBsaRoot::Dirs),
+            ForSomeBsaVersion::V104(bsa) => bsa.list().map(SomeBsaRoot::Dirs),
+            ForSomeBsaVersion::V105(bsa) => bsa.list().map(SomeBsaRoot::Dirs),
         }
     }
 
     fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> Result<()> {
         match self {
-            SomeBsaReader::V001(bsa) => bsa.extract(file, writer),
-            SomeBsaReader::V103(bsa) => bsa.extract(file, writer),
-            SomeBsaReader::V104(bsa) => bsa.extract(file, writer),
-            SomeBsaReader::V105(bsa) => bsa.extract(file, writer),
+            ForSomeBsaVersion::V001(bsa) => bsa.extract(file, writer),
+            ForSomeBsaVersion::V103(bsa) => bsa.extract(file, writer),
+            ForSomeBsaVersion::V104(bsa) => bsa.extract(file, writer),
+            ForSomeBsaVersion::V105(bsa) => bsa.extract(file, writer),
         }
     }
 }

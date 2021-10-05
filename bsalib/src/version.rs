@@ -28,9 +28,9 @@ pub enum Unknown {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Version {
-    V001, // TES3
+    V001,
     V10X(Version10X),
-    V200(u32), // F4 F76
+    V200(u32),
 }
 impl Version {
     pub fn open<P>(&self, path: P) -> Result<crate::SomeBsaReader<BufReader<File>>>
