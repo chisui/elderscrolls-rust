@@ -175,12 +175,16 @@ fn open_output_file(out: &PathBuf, ids: &[EntryId]) -> Result<File> {
         fs::create_dir_all(parent)?;
     }
     check_exists(&path)?;
-    File::create(path.as_path())
+    File::create(path)
 }
 
 fn as_path(id: &EntryId) -> PathBuf {
     if let Some(name) = &id.name {
-        PathBuf::from(name)
+        let mut path = PathBuf::new();
+        for part in name.split("\\") {
+            path.push(part);
+        }
+        path
     } else {
         PathBuf::from(format!("{}", id.hash))
     }
