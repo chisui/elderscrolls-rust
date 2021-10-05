@@ -1,5 +1,5 @@
 use std::{
-    io::{Result, Error, ErrorKind},
+    io::{BufReader, Result, Error, ErrorKind},
     fs::{self, File},
     path::PathBuf,
     fmt,
@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use bsalib::{
     self,
-    SomeBsaHeader,
+    SomeBsaHeader, SomeBsaReader,
     Version, Version10X,
     read::{BsaReader, BsaEntry, EntryId},
     write::{BsaWriter, list_dir},
@@ -18,7 +18,7 @@ use bsalib::{
     v10x::{ToArchiveBitFlags, V10XHeader},
 };
 mod cli;
-use crate::cli::{Cmds, Info, List, Extract, Create};
+use crate::cli::{Cmds, Info, List, Extract, Create, Overrides};
 
 
 fn main() -> Result<()> {
@@ -41,7 +41,7 @@ impl Cmd for Cmds {
 
 impl Cmd for Info {
     fn exec(&self) -> Result<()> {
-        let bsa = bsalib::open(&self.file)?;
+        let bsa = open(&self.file, &self.overrides)?;
         if self.verbose {
             println!("{}", bsa.header());
         } else {
@@ -58,7 +58,7 @@ impl Cmd for Info {
 
 impl Cmd for List {
     fn exec(&self) -> Result<()> {
-        let mut bsa = bsalib::open(&self.file)?;
+        let mut bsa = open(&self.file, &self.overrides)?;
         for dir in bsa.dirs()? {
             for file in &dir {
                 if self.attributes {
@@ -114,7 +114,7 @@ impl Cmd for Extract {
     fn exec(&self) -> Result<()> {
         let matcher = FileMatcher::new(&self.include, &self.exclude)?;
         
-        let mut bsa = bsalib::open(&self.file)?;
+        let mut bsa = open(&self.file, &self.overrides)?;
 
         for dir in bsa.dirs()? {
             for file in &dir {
@@ -128,6 +128,14 @@ impl Cmd for Extract {
         }
 
         Ok(())
+    }
+}
+
+fn open(file: &PathBuf, overrides: &Overrides) -> Result<SomeBsaReader<BufReader<File>>> {
+    if let Some(vs) = &overrides.force_version {
+        Version::from(vs).open(file)
+    } else {
+        bsalib::open(file)
     }
 }
 

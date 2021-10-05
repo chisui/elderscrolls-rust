@@ -21,7 +21,7 @@ impl From<UnknownMagicNumber> for io::Error {
 #[repr(u32)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum MagicNumber {
-    V001 = bin::concat_bytes([0,0,1,0]),
+    V001 = 0x00_01_00_00,  // bin::concat_bytes([0,0,1,0]),
     V10X = bin::concat_bytes(*b"BSA\0"),
     BTDX = bin::concat_bytes(*b"BTDX"),
 }

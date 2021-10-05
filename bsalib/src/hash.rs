@@ -12,8 +12,8 @@ use super::bin::{self, concat_bytes, write_struct};
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Zeroable, Pod)]
 pub struct Hash {
-    left: u32,
-    right: u32,
+    low: u32,
+    high: u32,
 }
 impl Hash {
     pub fn v001<S>(s: S) -> Self
@@ -30,20 +30,20 @@ impl Hash {
 
 impl From<Hash> for u64 {
     fn from(h: Hash) -> u64 {
-        (h.left as u64 >> 16) + h.right as u64
+        (h.low as u64 >> 16) + h.high as u64
     }
 }
 impl From<u64> for Hash {
     fn from(n: u64) -> Self {
         Self {
-            left: (n << 16) as u32,
-            right: n as u32,
+            low: (n << 16) as u32,
+            high: n as u32,
         }
     }
 }
 impl fmt::Display for Hash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:08x}{:08x}", self.left, self.right)
+        write!(f, "{:08x}{:08x}", self.low, self.high)
     }
 }
 impl bin::Readable for Hash {
@@ -59,8 +59,8 @@ impl bin::Writable for Hash {
 }
 impl hash::Hash for Hash {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        state.write_u32(self.left);
-        state.write_u32(self.right);
+        state.write_u32(self.low);
+        state.write_u32(self.high);
     }
 }
 
@@ -75,7 +75,7 @@ fn hash_v10x(bytes: &[u8]) -> Hash {
     let (root, ext) = hash_v10x_parts(bytes);
 
     Hash {
-        left: concat_bytes([
+        low: concat_bytes([
             root[root.len() - 1],
             when(root.len() > 2, || root[root.len() - 2]),
             root.len() as u8,
@@ -88,7 +88,7 @@ fn hash_v10x(bytes: &[u8]) -> Hash {
             _       => 0x00000000,
         },
 
-        right: when(root.len() > 2, || hash_sdbm(&root[1 .. root.len() - 2]))
+        high: when(root.len() > 2, || hash_sdbm(&root[1 .. root.len() - 2]))
             .wrapping_add(hash_sdbm(ext)),
     }
 }
@@ -109,20 +109,20 @@ fn hash_v001(bytes: &[u8]) -> Hash {
     let mid_point = bytes.len() >> 1;
     
     Hash {
-        left: {
-            let mut left = 0;
+        low: {
+            let mut low = 0;
             for i in mid_point .. bytes.len() {
                 let temp = (bytes[i] as u32) << (((i - mid_point) & 3) << 3);
-                left = rot_right(left ^ temp, temp & 0x1F);
+                low = rot_high(low ^ temp, temp & 0x1F);
             }
-            left
+            low
         },
-        right: concat_bytes({
-            let mut right: [u8; 4] = [0; 4];
+        high: concat_bytes({
+            let mut high: [u8; 4] = [0; 4];
             for i in 0 .. mid_point {
-                right[i & 3] ^= bytes[i];
+                high[i & 3] ^= bytes[i];
             }
-            right
+            high
         }),
     }
 }
@@ -136,7 +136,7 @@ fn hash_sdbm(bytes: &[u8]) -> u32 {
     hash
 }
 
-fn rot_right(value: u32, num_bits: u32) -> u32 {
+fn rot_high(value: u32, num_bits: u32) -> u32 {
     value.wrapping_shl(32 - num_bits) | value. wrapping_shl(num_bits)
 }
 

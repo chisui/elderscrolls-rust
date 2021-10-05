@@ -14,12 +14,11 @@ pub mod v104;
 pub mod v105;
 
 use std::{
-    io::{BufReader, Read, Seek, Write, Result, Error, ErrorKind},
+    io::{BufReader, Read, Seek, Write, Result},
     fmt,
     fs::File,
     path::Path,
 };
-use thiserror::Error;
 
 use crate::{
     read::{BsaReader, BsaDir, BsaFile},
@@ -34,11 +33,6 @@ pub use crate::{
     v104::V104,
     v105::V105,
 };
-
-#[derive(Debug, Error)]
-#[error("Unsupported Version {0}")]
-struct UnsupportedVersion(pub Version);
-
 
 pub enum SomeBsaHeader {
     V001(v001::Header),
@@ -83,19 +77,8 @@ where P: AsRef<Path> {
 }
 pub fn read<R>(mut reader: R) -> Result<SomeBsaReader<R>>
 where R: Read + Seek {
-    match Version::read(&mut reader, &())? {
-        Version::V001 => v001::read(reader)
-            .map(SomeBsaReader::V001),
-        Version::V10X(v) => match v {
-            Version10X::V103 => v103::read(reader)
-                .map(SomeBsaReader::V103),
-            Version10X::V104 => v104::read(reader)
-                .map(SomeBsaReader::V104),
-            Version10X::V105 => v105::read(reader)
-                .map(SomeBsaReader::V105),
-        },
-        v => Err(Error::new(ErrorKind::InvalidData, UnsupportedVersion(v))),
-    }
+    let v = <Version as Readable>::read(&mut reader, &())?;
+    v.read(reader)
 }
 
 impl<R: Read + Seek> BsaReader for SomeBsaReader<R> {

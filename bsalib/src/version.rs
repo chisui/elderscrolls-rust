@@ -1,15 +1,22 @@
 use std::{
-    fmt,
-    io::{self, Read, Write, Seek, Result},
     mem::size_of,
+    io::{self, BufReader, Read, Write, Seek, Result},
+    path::Path,
+    fs::File,
+    fmt,
 };
 
 use thiserror::Error;
 
-use super::{
+use crate::{
     bin,
     magicnumber::MagicNumber,
 };
+
+
+#[derive(Debug, Error)]
+#[error("Unsupported Version {0}")]
+struct UnsupportedVersion(pub Version);
 
 #[derive(Debug, Error)]
 pub enum Unknown {
@@ -24,6 +31,21 @@ pub enum Version {
     V001, // TES3
     V10X(Version10X),
     V200(u32), // F4 F76
+}
+impl Version {
+    pub fn open<P>(&self, path: P) -> Result<crate::SomeBsaReader<BufReader<File>>>
+    where P: AsRef<Path> {
+        let file = File::open(path)?;
+        let buf = BufReader::new(file);
+        self.read(buf)
+    }
+    pub fn read<R: Read + Seek>(&self, reader: R) -> Result<crate::SomeBsaReader<R>> {
+        match self {
+            Version::V001 => crate::v001::read(reader).map(crate::SomeBsaReader::V001),
+            Version::V10X(v) => v.read(reader),
+            Version::V200(_) => Err(io::Error::new(io::ErrorKind::InvalidInput, UnsupportedVersion(*self))),
+        }
+    }
 }
 impl From<&Version> for MagicNumber {
     fn from(version: &Version) -> MagicNumber {
@@ -41,6 +63,15 @@ pub enum Version10X {
     V103 = 103, // TES4
     V104 = 104, // F3, FNV, TES5
     V105 = 105, // TES5se
+}
+impl Version10X {
+    pub fn read<R: Read + Seek>(&self, reader: R) -> Result<crate::SomeBsaReader<R>> {
+        match self {
+            Version10X::V103 => crate::v103::read(reader).map(crate::SomeBsaReader::V103),
+            Version10X::V104 => crate::v104::read(reader).map(crate::SomeBsaReader::V104),
+            Version10X::V105 => crate::v105::read(reader).map(crate::SomeBsaReader::V105),
+        }
+    }
 }
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

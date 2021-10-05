@@ -17,6 +17,9 @@ pub enum Cmds {
 #[derive(Debug, Clap)]
 #[clap()]
 pub struct Info {
+    #[clap(flatten)]
+    pub overrides: Overrides,
+
     /// Print all header informations.
     #[clap(short, long)]
     pub verbose: bool,
@@ -30,6 +33,9 @@ pub struct Info {
 #[derive(Debug, Clap)]
 #[clap()]
 pub struct List {
+    #[clap(flatten)]
+    pub overrides: Overrides,
+
     /// print file attributes. This includes the size and whether or not the file is compressed.
     #[clap(short, long)]
     pub attributes: bool,
@@ -43,6 +49,9 @@ pub struct List {
 #[derive(Debug, Clap)]
 #[clap()]
 pub struct Extract {
+    #[clap(flatten)]
+    pub overrides: Overrides,
+
     /// Glob patterns that all file names that should be extracted have to match.
     #[clap(short, long, parse(try_from_str))]
     pub include: Vec<Pattern>,
@@ -58,27 +67,6 @@ pub struct Extract {
     /// Output directory. If none is provided the current directory is used.
     #[clap(parse(from_os_str), default_value=".")]
     pub output: PathBuf,
-}
-
-#[derive(ArgEnum, Debug, PartialEq, Clone)]
-pub enum VersionSlug {
-    V001, Tes3, Morrowind,
-    V103, Tes4, Oblivion,
-    V104, Tes5, Skyrim, Fallout3, F3, Fnv, NewVegas, FalloutNewVegas,
-    V105, Tes5se, SkyrimSE,
-    V200, Fallout4, F4, Fallout76, F76,
-}
-use VersionSlug::*;
-impl From<&VersionSlug> for Version {
-    fn from(slug: &VersionSlug) -> Self {
-        match slug {
-            V001 | Tes3 | Morrowind => Version::V001,
-            V103 | Tes4 | Oblivion => Version::V10X(Version10X::V103),
-            V104 | Tes5 | Skyrim | Fallout3 | F3 | Fnv | NewVegas | FalloutNewVegas => Version::V10X(Version10X::V104),
-            V105 | Tes5se | SkyrimSE => Version::V10X(Version10X::V105),
-            V200 | Fallout4 | F4 | Fallout76 | F76 => Version::V200(0),
-        }
-    }
 }
 
 /// Create an archive file.
@@ -104,4 +92,33 @@ pub struct Create {
     /// Root directory of the archive to create.
     #[clap(parse(from_os_str))]
     pub file: PathBuf,
+}
+
+#[derive(Debug, Clap)]
+pub struct Overrides {
+    /// Ignore file version information and treat it as this version instead.
+    #[clap(arg_enum, long="force-version")]
+    pub force_version: Option<VersionSlug>,
+}
+
+
+#[derive(ArgEnum, Debug, PartialEq, Clone)]
+pub enum VersionSlug {
+    V001, Tes3, Morrowind,
+    V103, Tes4, Oblivion,
+    V104, Tes5, Skyrim, Fallout3, F3, Fnv, NewVegas, FalloutNewVegas,
+    V105, Tes5se, SkyrimSE,
+    V200, Fallout4, F4, Fallout76, F76,
+}
+use VersionSlug::*;
+impl From<&VersionSlug> for Version {
+    fn from(slug: &VersionSlug) -> Self {
+        match slug {
+            V001 | Tes3 | Morrowind => Version::V001,
+            V103 | Tes4 | Oblivion => Version::V10X(Version10X::V103),
+            V104 | Tes5 | Skyrim | Fallout3 | F3 | Fnv | NewVegas | FalloutNewVegas => Version::V10X(Version10X::V104),
+            V105 | Tes5se | SkyrimSE => Version::V10X(Version10X::V105),
+            V200 | Fallout4 | F4 | Fallout76 | F76 => Version::V200(0),
+        }
+    }
 }
