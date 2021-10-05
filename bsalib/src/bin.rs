@@ -186,6 +186,14 @@ impl<A: Writable> Positioned<A> {
         self.update(out)
     }
 }
+impl<A: Readable> Readable for Positioned<A> {
+    type Arg = A::Arg;
+    fn read_here<R: Read + Seek>(mut reader: R, arg: &A::Arg) -> Result<Self> {
+        let position = reader.stream_position()?;
+        let data = A::read_here(reader, arg)?;
+        Ok(Positioned { position, data })
+    }
+}
 
 pub trait DataSource
 where Self::Read: Read {

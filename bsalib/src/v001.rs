@@ -89,6 +89,7 @@ impl<R: Read + Seek> BsaReader<R> {
         let hashes = Hash::read_many0(&mut self.reader, file_count)?;
 
         let offset_names_start = offset_after_header + (file_count as u64 * (size_of::<FileRecord>() + size_of::<u32>()) as u64);
+        let offset_after_index = offset_after_header + self.header.offset_hash_table as u64 + (size_of::<Hash>() * file_count) as u64;
 
         recs.iter().zip(name_offsets).zip(hashes)
             .map(|((rec, name_offset), hash)| {
@@ -100,7 +101,7 @@ impl<R: Read + Seek> BsaReader<R> {
                     name: Some(name.to_string()),
                     compressed: false,
                     size: rec.size as usize,
-                    offset: rec.offset as u64,
+                    offset: offset_after_index + rec.offset as u64,
                 })
             })
             .collect()
