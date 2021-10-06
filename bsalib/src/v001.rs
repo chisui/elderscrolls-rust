@@ -91,17 +91,17 @@ impl<R: Read + Seek> BsaReader<R> {
         let file_count = self.header.file_count as usize;
         self.reader.seek(SeekFrom::Start(offset_after_header()))?;
         
-        let recs = FileRecord::read_many(&mut self.reader, file_count)?;
-        let name_offsets = u32::read_many(&mut self.reader, file_count)?;
+        let recs = FileRecord::read_bin_many(&mut self.reader, file_count)?;
+        let name_offsets = u32::read_bin_many(&mut self.reader, file_count)?;
         
         self.reader.seek(SeekFrom::Start(offset_after_header() + self.header.offset_hash_table as u64))?;
-        let hashes = Hash::read_many(&mut self.reader, file_count)?;
+        let hashes = Hash::read_bin_many(&mut self.reader, file_count)?;
         
         recs.iter().zip(name_offsets).zip(hashes)
             .map(|((rec, name_offset), hash)| {
                 let name_pos = offset_names_start(file_count as u64) + name_offset as u64;
                 self.reader.seek(SeekFrom::Start(name_pos))?;
-                let name = match ZString::read(&mut self.reader) {
+                let name = match ZString::read_bin(&mut self.reader) {
                     Ok(n) => n,
                     Err(err) => panic!("could not read name at {}: {}", name_pos, err),
                 };

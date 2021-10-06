@@ -62,12 +62,12 @@ pub fn read_fixed_default<A: Fixed + Pod, R: Read + Seek>(mut reader: R) -> Resu
     read_struct(reader)
 }
 pub trait Readable: Sized {
-    fn read<R: Read>(reader: R) -> Result<Self>;
+    fn read_bin<R: Read>(reader: R) -> Result<Self>;
 
-    fn read_many<R: Read>(mut reader: R, num: usize) -> Result<Vec<Self>> {
+    fn read_bin_many<R: Read>(mut reader: R, num: usize) -> Result<Vec<Self>> {
         let mut vals = Vec::new();
         for _ in 0..num {
-            let val = Self::read(&mut reader)?;
+            let val = Self::read_bin(&mut reader)?;
             vals.push(val);
         }
         Ok(vals)
@@ -75,13 +75,13 @@ pub trait Readable: Sized {
 }
 
 pub trait ReadableParam<P>: Sized {
-    fn read<R: Read>(reader: R, param: P) -> Result<Self>;
+    fn read_with_param<R: Read>(reader: R, param: P) -> Result<Self>;
 
-    fn read_many<R: Read + Seek>(mut reader: R, num: usize, param: P) -> Result<Vec<Self>>
+    fn read_with_param_many<R: Read + Seek>(mut reader: R, num: usize, param: P) -> Result<Vec<Self>>
     where P: Copy {
         let mut vals = Vec::new();
         for _ in 0..num {
-            let val = Self::read(&mut reader, param)?;
+            let val = Self::read_with_param(&mut reader, param)?;
             vals.push(val);
         }
         Ok(vals)
@@ -91,7 +91,7 @@ pub trait ReadableParam<P>: Sized {
 macro_rules! derive_readable_via_pod {
     ( $t:ty ) => {
         impl crate::bin::Readable for $t {
-            fn read<R: std::io::Read>(reader: R) -> std::io::Result<Self> {
+            fn read_bin<R: std::io::Read>(reader: R) -> std::io::Result<Self> {
                 crate::bin::read_struct(reader)
             }
         }
@@ -228,7 +228,7 @@ pub(crate) mod test {
         val.write(&mut out)
             .unwrap_or_else(|err| panic!("could not write {:?}: {}", val, err));
         let mut input = Cursor::new(out.into_inner());
-        A::read(&mut input)
+        A::read_bin(&mut input)
             .unwrap_or_else(|err| panic!("could not read {:?}: {}", val, err))
     }
 

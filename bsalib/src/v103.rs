@@ -147,7 +147,7 @@ mod tests {
         v103::Header::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
             
-        let dirs = DirRecord::read_many(&mut bytes, 1)
+        let dirs = DirRecord::read_bin_many(&mut bytes, 1)
             .unwrap_or_else(|err| panic!("could not read dir records {}", err));
 
         assert_eq!(dirs.len(), 1, "dirs.len()");
@@ -163,14 +163,14 @@ mod tests {
         let header = v103::Header::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read Header {}", err));
             
-        let dir_rec = v103::DirRecord::read(&mut bytes)
+        let dir_rec = v103::DirRecord::read_bin(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read dir rec {}", err));
         
         let offset = dir_rec.offset as u64 - header.total_dir_name_length as u64;
         bytes.seek(SeekFrom::Start(offset))
             .unwrap_or_else(|err| panic!("could not seek to offset {}", err));
 
-        let dir_content = v10x::DirContentRecord::read(&mut bytes, (true, 1))
+        let dir_content = v10x::DirContentRecord::read_with_param(&mut bytes, (true, 1))
             .unwrap_or_else(|err| panic!("could not read dir content record {}", err));
 
         assert_eq!(dir_content.name, Some(BZString::new("a").unwrap()), "dir_content.name");

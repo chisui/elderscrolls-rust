@@ -219,7 +219,7 @@ where
     fn read_file_names(&mut self) -> Result<HashMap<Hash, ZString>> {
         self.reader.seek(SeekFrom::Start(self.offset_file_names() as u64))?;
         Ok(if self.header.has(AF::includes_file_names()) {
-            let names = ZString::read_many(&mut self.reader, self.header.file_count as usize)?;
+            let names = ZString::read_bin_many(&mut self.reader, self.header.file_count as usize)?;
             names.iter()
                 .map(|name| (Hash::v10x(name.to_string().as_str()), name.clone()))
                 .collect()
@@ -233,7 +233,7 @@ where
         
         self.reader.seek(SeekFrom::Start(
             dir.offset as u64 - self.header.total_file_name_length as u64))?;
-        let dir_content = DirContentRecord::read(&mut self.reader, (has_dir_name, dir.file_count))?;
+        let dir_content = DirContentRecord::read_with_param(&mut self.reader, (has_dir_name, dir.file_count))?;
 
         Ok(BsaDir {
             hash: dir.name_hash,
@@ -288,7 +288,7 @@ where
             Ok(dirs.to_vec())
         } else {
             self.reader.seek(SeekFrom::Start(self.offset_after_header() as u64))?;
-            let raw_dirs = RDR::read_many(&mut self.reader, self.header.dir_count as usize)?;
+            let raw_dirs = RDR::read_bin_many(&mut self.reader, self.header.dir_count as usize)?;
             let file_names = self.read_file_names()?;
             let dirs = raw_dirs.iter()
                 .map(|dir| DirRecord::from(*dir) )
@@ -361,14 +361,14 @@ pub struct DirContentRecord {
     pub files: Vec<FileRecord>,
 }
 impl ReadableParam<(bool, u32)> for DirContentRecord {
-    fn read<R: Read>(mut reader: R, (has_name, file_count): (bool, u32)) -> Result<DirContentRecord> {
+    fn read_with_param<R: Read>(mut reader: R, (has_name, file_count): (bool, u32)) -> Result<Self> {
         let name = if has_name {
-            let n = BZString::read(&mut reader)?;
+            let n = BZString::read_bin(&mut reader)?;
             Some(n)
         } else {
             None
         };
-        let files = FileRecord::read_many(reader, file_count as usize)?;
+        let files = FileRecord::read_bin_many(reader, file_count as usize)?;
         Ok(DirContentRecord {
             name,
             files,

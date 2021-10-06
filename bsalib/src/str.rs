@@ -43,7 +43,7 @@ impl ToString for BString {
     }
 }
 impl Readable for BString {
-    fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+    fn read_bin<R: Read>(mut reader: R) -> io::Result<Self> {
         let length: u8 = read_struct(&mut reader)?;
         let mut chars: Vec<u8> = vec![0u8; length as usize];
         reader.read_exact(&mut chars)?;
@@ -90,7 +90,7 @@ impl ToString for ZString {
     }
 }
 impl Readable for ZString {
-    fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+    fn read_bin<R: Read>(mut reader: R) -> io::Result<Self> {
         let mut chars: Vec<u8> = Vec::with_capacity(32);
         loop {
             let c: u8 = read_struct(&mut reader)?;
@@ -148,11 +148,11 @@ impl VarSize for BZString {
     }
 }
 impl Readable for BZString {
-    fn read<R: Read>(mut reader: R) -> io::Result<Self> {
-        let len = u8::read(&mut reader)?;
+    fn read_bin<R: Read>(mut reader: R) -> io::Result<Self> {
+        let len = u8::read_bin(&mut reader)?;
         let mut chars: Vec<u8> = vec![0u8; (len - 1) as usize]; // length field includes null.
         reader.read_exact(&mut chars)?;
-        u8::read(&mut reader)?; // skip null byte
+        u8::read_bin(&mut reader)?; // skip null byte
         let s = Self::try_from(chars)?;
         Ok(s)
     }

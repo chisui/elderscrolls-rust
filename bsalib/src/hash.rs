@@ -24,7 +24,7 @@ impl Hash {
             low: (mid_point .. bytes.len())
                 .fold(0, |low, i| {
                     let temp = (bytes[i] as u32) << (((i - mid_point) & 3) << 3);
-                    rot_high(low ^ temp, temp & 0x1F)
+                    rot_right(low ^ temp, temp & 0x1F)
                 }),
             high: concat_bytes({
                 let mut high: [u8; 4] = [0; 4];
@@ -98,7 +98,7 @@ fn hash_sdbm(bytes: &[u8]) -> u32 {
         .fold(0, |hash, c| hash.wrapping_mul(0x01003f) + *c as u32)
 }
 
-fn rot_high(value: u32, num_bits: u32) -> u32 {
+fn rot_right(value: u32, num_bits: u32) -> u32 {
     value.wrapping_shl(32 - num_bits) | value. wrapping_shl(num_bits)
 }
 

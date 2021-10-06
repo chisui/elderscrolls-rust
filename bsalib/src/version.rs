@@ -44,7 +44,7 @@ impl Fixed for MagicNumber {
 impl ReadableFixed for MagicNumber {
     fn read_fixed<R: Read + Seek>(mut reader: R) -> io::Result<MagicNumber> {
         Self::move_to_start(&mut reader)?;
-        let raw = u32::read(reader)?;
+        let raw = u32::read_bin(reader)?;
         MagicNumber::try_from(raw)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
     }
@@ -107,7 +107,7 @@ impl Fixed for Version10X {
 impl ReadableFixed for Version10X {
     fn read_fixed<R: Read + Seek>(mut reader: R) -> io::Result<Self> {
         Self::move_to_start(&mut reader)?;
-        Ok(match u32::read(&mut reader)? {
+        Ok(match u32::read_bin(&mut reader)? {
             103 => Version10X::V103,
             104 => Version10X::V104,
             105 => Version10X::V105,
@@ -188,7 +188,7 @@ impl ReadableFixed for Version {
         Ok(match MagicNumber::read_fixed(&mut buffer)? {
             MagicNumber::V001 => Version::V001,
             MagicNumber::BSA0 => Version::V10X(Version10X::read_fixed(buffer)?),
-            MagicNumber::BTDX => Version::BA2(u32::read(&mut buffer)?),
+            MagicNumber::BTDX => Version::BA2(u32::read_bin(&mut buffer)?),
         })
     }
 }
