@@ -1,24 +1,18 @@
-use std::{
-    io::{BufReader, Result, Error, ErrorKind},
-    fs::{self, File},
-    path::PathBuf,
-    fmt,
-};
+use std::path::PathBuf;
+use std::fs::{self, File};
+use std::io::{BufReader, Result, Error, ErrorKind};
 use clap::Clap;
 use glob::{Pattern, MatchOptions};
 use thiserror::Error;
 
-use bsalib::{
-    self,
-    ForSomeBsaVersion, SomeBsaReader, SomeBsaRoot,
-    Version, Version10X,
-    read::{BsaReader, BsaEntry, EntryId},
-    write::{BsaWriter, list_dir},
-    v105,
-    v10x::{ToArchiveBitFlags, V10XHeader},
-};
+use bsalib::{SomeBsaReader, SomeBsaRoot, Version, V001, V105};
+use bsalib::write::{BsaWriter, list_dir};
+use bsalib::read::{BsaReader, BsaEntry, EntryId};
+use bsalib::v105;
+use bsalib;
+
 mod cli;
-use crate::cli::{Cmds, Info, List, Extract, Create, Overrides};
+use crate::cli::{Cmds, Info, List, Extract, Create, Overrides, CreateArgs};
 
 
 fn main() -> Result<()> {
@@ -43,14 +37,9 @@ impl Cmd for Info {
     fn exec(&self) -> Result<()> {
         let bsa = open(&self.file, &self.overrides)?;
         if self.verbose {
-            println!("{}", bsa.header());
+            println!("{:?}", bsa.header());
         } else {
-            match bsa.header() {
-                ForSomeBsaVersion::V001(h) => println!("{}", h),
-                ForSomeBsaVersion::V103(h) => println!("{}", Sparse(h)),
-                ForSomeBsaVersion::V104(h) => println!("{}", Sparse(h)),
-                ForSomeBsaVersion::V105(h) => println!("{}", Sparse(h)),
-            }
+            println!("{}", bsa.header());
         }
         Ok(())
     }
@@ -205,10 +194,6 @@ struct FileAlreadyExists(PathBuf);
 
 impl Cmd for Create {
     fn exec(&self) -> Result<()> {
-        if Version::from(&self.version) != Version::V10X(Version10X::V105) {
-            return Err(Error::new(ErrorKind::Unsupported, "currently only v105 is supported"))
-        }
-
         let output = match self.output.as_ref() {
             Some(p) => p.clone(),
             None => {
@@ -219,35 +204,26 @@ impl Cmd for Create {
         };
 
         check_exists(&output)?;
-
-        let mut opts = v105::BsaWriterOptions::default();
-        if self.compress {
-            opts.archive_flags |= v105::ArchiveFlag::CompressedArchive;
-        }
-
-        if self.embed_file_names {
-            opts.archive_flags |= v105::ArchiveFlag::EmbedFileNames;
-        }
-        
         let dirs = list_dir(&self.file)?;
         let file = File::create(output)?;
-        v105::BsaWriter::write_bsa(opts, dirs, file)
-    }
-}
 
-struct Sparse<A>(A);
-
-impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for Sparse<V10XHeader<AF>> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Direcotries: {}", self.0.dir_count)?;
-        writeln!(f, "Files:   {}", self.0.file_count)?;
-        writeln!(f, "Archive flags:")?;
-        for flag in self.0.archive_flags.iter() {
-            writeln!(f, "    {:?}", flag)?;
-        }
-        writeln!(f, "File flags:")?;
-        for flag in self.0.file_flags.iter() {
-            writeln!(f, "    {:?}", flag)?;
+        match &self.args {
+            CreateArgs::V001 => {
+                V001::write_bsa((), dirs, file)
+                    .map_err(|err| Error::new(ErrorKind::Other, err))?;
+            },
+            CreateArgs::V105(args) => {
+                let mut opts = v105::BsaWriterOptions::default();
+                if args.compress {
+                    opts.archive_flags |= v105::ArchiveFlag::CompressedArchive;
+                }
+                
+                if args.embed_file_names {
+                    opts.archive_flags |= v105::ArchiveFlag::EmbedFileNames;
+                }
+                V105::write_bsa(opts, dirs, file)?;
+            },
+            v => print!("unsupported version: {}", Version::from(v)),
         }
         Ok(())
     }

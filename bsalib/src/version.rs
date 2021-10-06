@@ -23,6 +23,7 @@ pub enum MagicNumber {
     V001 = concat_bytes([0,0,1,0]),
     BSA0 = concat_bytes(*b"BSA\0"),
     BTDX = concat_bytes(*b"BTDX"),
+    DX10 = concat_bytes(*b"DX10"),
 }
 impl From<MagicNumber> for u32 {
     fn from(nr: MagicNumber) -> u32 {
@@ -35,6 +36,7 @@ impl TryFrom<u32> for MagicNumber {
         if i == MagicNumber::V001 as u32 { Ok(MagicNumber::V001) }
         else if i == MagicNumber::BSA0 as u32 { Ok(MagicNumber::BSA0) }
         else if i == MagicNumber::BTDX as u32 { Ok(MagicNumber::BTDX) }
+        else if i == MagicNumber::DX10 as u32 { Ok(MagicNumber::DX10) }
         else { Err(MagicNumberError::Unknown(i)) }
     }
 }
@@ -123,10 +125,24 @@ impl WritableFixed for Version10X {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum BA2Type {
+    BTDX,
+    DX10,
+}
+impl fmt::Display for BA2Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BA2Type::BTDX => write!(f, "BTDX"),
+            BA2Type::DX10 => write!(f, "DX10"),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Version {
     V001,
     V10X(Version10X),
-    BA2(u32),
+    BA2(BA2Type, u32),
 }
 impl Version {
     pub fn open<P>(&self, path: P) -> io::Result<crate::SomeBsaReader<BufReader<File>>>
@@ -148,7 +164,8 @@ impl From<&Version> for MagicNumber {
         match version {
             Version::V001    => MagicNumber::V001,
             Version::V10X(_) => MagicNumber::BSA0,
-            Version::BA2(_)  => MagicNumber::BTDX,
+            Version::BA2(BA2Type::BTDX, _)  => MagicNumber::BTDX,
+            Version::BA2(BA2Type::DX10, _)  => MagicNumber::DX10,
         }
     }
 }
@@ -157,7 +174,7 @@ impl fmt::Display for Version {
         match self {
             Version::V001 => write!(f, "v100"),
             Version::V10X(v) => v.fmt(f),
-            Version::BA2(v) => write!(f, "BA2 v{:03}", v),
+            Version::BA2(t, v) => write!(f, "BA2 {} v{:03}", t, v),
         }
     }
 }
@@ -166,7 +183,7 @@ impl VarSize for Version {
         size_of::<MagicNumber>() + match self {
             Version::V001 => 0,
             Version::V10X(v) => (*v).size(),
-            Version::BA2(_) => size_of::<u32>(),
+            Version::BA2(_, _) => size_of::<u32>(),
         }
     }
 }
@@ -178,7 +195,7 @@ impl WritableFixed for Version {
         MagicNumber::from(self).write_fixed(&mut writer)?;
         match self {
             Version::V001 => Ok(()),
-            Version::BA2(v) => v.write(writer),
+            Version::BA2(_, v) => v.write(writer),
             Version::V10X(v) => (*v as u32).write(writer),
         }
     }
@@ -188,7 +205,8 @@ impl ReadableFixed for Version {
         Ok(match MagicNumber::read_fixed(&mut buffer)? {
             MagicNumber::V001 => Version::V001,
             MagicNumber::BSA0 => Version::V10X(Version10X::read_fixed(buffer)?),
-            MagicNumber::BTDX => Version::BA2(u32::read_bin(&mut buffer)?),
+            MagicNumber::BTDX => Version::BA2(BA2Type::BTDX, u32::read_bin(&mut buffer)?),
+            MagicNumber::DX10 => Version::BA2(BA2Type::DX10, u32::read_bin(&mut buffer)?),
         })
     }
 }
@@ -227,7 +245,8 @@ mod tests {
             Version::V10X(Version10X::V103),
             Version::V10X(Version10X::V104),
             Version::V10X(Version10X::V105),
-            Version::BA2(12),
+            Version::BA2(BA2Type::BTDX, 12),
+            Version::BA2(BA2Type::DX10, 42),
         ] {
             write_read_fixed_identity(v)
         }

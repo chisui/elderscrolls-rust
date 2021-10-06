@@ -24,7 +24,7 @@ use thiserror::Error;
 use crate::read::{BsaReader, BsaDir, BsaFile};
 pub use crate::{
     hash::Hash,
-    version::{Version, Version10X},
+    version::{Version, Version10X, BA2Type},
     v001::V001,
     v103::V103,
     v104::V104,
