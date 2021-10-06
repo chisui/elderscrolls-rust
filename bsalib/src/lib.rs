@@ -13,7 +13,7 @@ mod v103;
 mod v104;
 mod v105;
 
-use std::io::{Read, Seek, Write, Result};
+use std::io::{self, Read, Seek, Write};
 use bin::ReadableFixed;
 use thiserror::Error;
 
@@ -48,6 +48,7 @@ impl<A001, A103, A104, A105> ForSomeBsaVersion<A001, A103, A104, A105> {
 
 pub type SomeBsaHeader = ForSomeBsaVersion<HeaderV001, HeaderV103, HeaderV104, HeaderV105>;
 pub type SomeBsaReader<R> = ForSomeBsaVersion<BsaReaderV001<R>, BsaReaderV103<R>, BsaReaderV104<R>, BsaReaderV105<R>>;
+pub type SomeBsaWriter = ForSomeBsaVersion<BsaWriterV001, BsaWriterV103, BsaWriterV104, BsaWriterV105>;
 
 pub enum SomeBsaRoot {
     Dirs(Vec<BsaDir>),
@@ -59,7 +60,7 @@ where R: Read + Seek {
     type Root = SomeBsaRoot;
     type In = R;
 
-    fn read_bsa(mut reader: R) -> Result<Self> {
+    fn read_bsa(mut reader: R) -> io::Result<Self> {
         Version::read_fixed(&mut reader)?
             .read_bsa(reader)
     }
@@ -73,7 +74,7 @@ where R: Read + Seek {
         }
     }
 
-    fn list(&mut self) -> Result<SomeBsaRoot> {
+    fn list(&mut self) -> io::Result<SomeBsaRoot> {
         match self {
             ForSomeBsaVersion::V001(bsa) => bsa.list().map(SomeBsaRoot::Files),
             ForSomeBsaVersion::V103(bsa) => bsa.list().map(SomeBsaRoot::Dirs),
@@ -82,12 +83,34 @@ where R: Read + Seek {
         }
     }
 
-    fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> Result<()> {
+    fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> io::Result<()> {
         match self {
             ForSomeBsaVersion::V001(bsa) => bsa.extract(file, writer),
             ForSomeBsaVersion::V103(bsa) => bsa.extract(file, writer),
             ForSomeBsaVersion::V104(bsa) => bsa.extract(file, writer),
             ForSomeBsaVersion::V105(bsa) => bsa.extract(file, writer),
         }
+    }
+}
+
+impl BsaWriter for SomeBsaWriter {
+    type Err = ForSomeBsaVersion<
+        <BsaWriterV001 as BsaWriter>::Err,
+        <BsaWriterV103 as BsaWriter>::Err,
+        <BsaWriterV104 as BsaWriter>::Err,
+        <BsaWriterV105 as BsaWriter>::Err,
+    >;
+
+    fn write_bsa<DS, D, W>(&self, dirs: DS, out: W) -> Result<(), Self::Err>
+    where
+        D: bin::DataSource,
+        DS: IntoIterator<Item = BsaDirSource<D>>,
+        W: Write + Seek {
+            match self {
+                ForSomeBsaVersion::V001(writer) => writer.write_bsa(dirs, out).map_err(ForSomeBsaVersion::V001),
+                ForSomeBsaVersion::V103(writer) => writer.write_bsa(dirs, out).map_err(ForSomeBsaVersion::V103),
+                ForSomeBsaVersion::V104(writer) => writer.write_bsa(dirs, out).map_err(ForSomeBsaVersion::V104),
+                ForSomeBsaVersion::V105(writer) => writer.write_bsa(dirs, out).map_err(ForSomeBsaVersion::V105),
+            }
     }
 }

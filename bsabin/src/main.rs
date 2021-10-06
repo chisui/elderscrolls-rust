@@ -5,10 +5,7 @@ use clap::Clap;
 use glob::{Pattern, MatchOptions};
 use thiserror::Error;
 
-use bsalib::{ArchiveFlagV105, BsaWriterV001, BsaWriterV105, SomeBsaReader, SomeBsaRoot, Version};
-use bsalib::{BsaWriter, list_dir};
-use bsalib::{BsaReader, BsaEntry, EntryId};
-use bsalib;
+use bsalib::{self, ArchiveFlagV105, BsaEntry, BsaReader, BsaWriter, BsaWriterV001, BsaWriterV105, EntryId, SomeBsaReader, SomeBsaRoot, Version, list_dir};
 
 mod cli;
 use crate::cli::{Cmds, Info, List, Extract, Create, Overrides, CreateArgs};
