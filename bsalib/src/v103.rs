@@ -111,22 +111,13 @@ mod tests {
     use std::io::{Cursor, SeekFrom};
     use enumflags2::BitFlags;
     use super::*;
-    use crate::{
-        str::BZString,
-        Hash,
-        bin::Readable,
-        read::BsaReader,
-        write::{BsaDirSource, test::*},
-        version::{Version, Version10X},
-        v103,
-        v10x,
-    };
+    use crate::{Hash, bin::{Readable, ReadableParam, ReadableFixed}, read::BsaReader, str::BZString, v103, v10x, version::{Version, Version10X}, write::{BsaDirSource, test::*}};
 
     #[test]
     fn writes_version() {
         let mut bytes = some_bsa_bytes::<V103>();
 
-        let v = Version::read0(&mut bytes)
+        let v = Version::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read version {}", err));
         assert_eq!(v, Version::V10X(Version10X::V103));
     }
@@ -135,7 +126,7 @@ mod tests {
     fn writes_header() {
         let mut bytes = some_bsa_bytes::<V103>();
 
-        let header = v103::Header::read0(&mut bytes)
+        let header = v103::Header::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
 
         assert_eq!(header.offset, 36, "offset");
@@ -153,10 +144,10 @@ mod tests {
     fn writes_dir_records() {
         let mut bytes = some_bsa_bytes::<V103>();
 
-        v103::Header::read0(&mut bytes)
+        v103::Header::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
             
-        let dirs = DirRecord::read_many0(&mut bytes, 1)
+        let dirs = DirRecord::read_many(&mut bytes, 1)
             .unwrap_or_else(|err| panic!("could not read dir records {}", err));
 
         assert_eq!(dirs.len(), 1, "dirs.len()");
@@ -169,17 +160,17 @@ mod tests {
         let mut bytes = some_bsa_bytes::<V103>();
 
 
-        let header = v103::Header::read0(&mut bytes)
+        let header = v103::Header::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read Header {}", err));
             
-        let dir_rec = v103::DirRecord::read_here0(&mut bytes)
+        let dir_rec = v103::DirRecord::read(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read dir rec {}", err));
         
         let offset = dir_rec.offset as u64 - header.total_dir_name_length as u64;
         bytes.seek(SeekFrom::Start(offset))
             .unwrap_or_else(|err| panic!("could not seek to offset {}", err));
 
-        let dir_content = v10x::DirContentRecord::read_here(&mut bytes, &(true, 1))
+        let dir_content = v10x::DirContentRecord::read(&mut bytes, (true, 1))
             .unwrap_or_else(|err| panic!("could not read dir content record {}", err));
 
         assert_eq!(dir_content.name, Some(BZString::new("a").unwrap()), "dir_content.name");

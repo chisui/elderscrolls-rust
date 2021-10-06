@@ -1,13 +1,12 @@
 use std::{
-    io::{self, Read, Write, Seek, SeekFrom},
+    io::{self, Read, Write},
     str::{self, FromStr},
     convert::TryFrom,
 };
 use thiserror::Error;
-use macro_attr_2018::macro_attr;
-use newtype_derive_2018::*;
 
-use super::bin::{read_struct, Readable, Writable, write_many};
+use crate::bin::{Readable, VarSize, Writable, read_struct, write_many};
+
 
 #[derive(Debug, Error)]
 pub enum StrError {
@@ -22,15 +21,9 @@ impl From<StrError> for io::Error {
     }
 }
 
-macro_attr! {
-    #[derive(Clone, Debug, PartialEq, Eq, NewtypeDeref!, NewtypeDerefMut!)]
-    pub struct BString(String);
-}
-impl BString {
-    pub fn new<B: AsRef<[u8]>> (chars: B) -> Result<Self, StrError> {
-        from_utf8(chars)
-    }
-}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BString(String);
+
 impl TryFrom<Vec<u8>> for BString {
     type Error = StrError;
     fn try_from(chars: Vec<u8>) -> Result<Self, StrError> {
@@ -44,14 +37,13 @@ impl FromStr for BString {
         Ok(Self(s.to_owned()))
     }
 }
-
 impl ToString for BString {
     fn to_string(&self) -> String {
         self.0.clone()
     }
 }
 impl Readable for BString {
-    fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> io::Result<Self> {
+    fn read<R: Read>(mut reader: R) -> io::Result<Self> {
         let length: u8 = read_struct(&mut reader)?;
         let mut chars: Vec<u8> = vec![0u8; length as usize];
         reader.read_exact(&mut chars)?;
@@ -59,22 +51,21 @@ impl Readable for BString {
         Ok(s)
     }
 }
-impl Writable for BString {
+impl VarSize for BString {
     fn size(&self) -> usize {
         self.0.len() + 2 // length byte + chars + null
     }
-    fn write_here<W: Write>(&self, mut out: W) -> io::Result<()> {
-        (self.0.len() as u8).write_here(&mut out)?;
+}
+impl Writable for BString {
+    fn write<W: Write>(&self, mut out: W) -> io::Result<()> {
+        (self.0.len() as u8).write(&mut out)?;
         write_many(self.0.bytes(), &mut out)?;
-        (0 as u8).write_here(&mut out)
+        (0 as u8).write(&mut out)
     }
 }
 
-macro_attr! {
-    #[derive(Clone, Debug, PartialEq, Eq, NewtypeDeref!, NewtypeDerefMut!)]
-    pub struct ZString(String);
-}
-
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ZString(String);
 impl ZString {
     pub fn new<B: AsRef<[u8]>> (chars: B) -> Result<Self, StrError> {
         from_utf8(chars)
@@ -99,7 +90,7 @@ impl ToString for ZString {
     }
 }
 impl Readable for ZString {
-    fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> io::Result<Self> {
+    fn read<R: Read>(mut reader: R) -> io::Result<Self> {
         let mut chars: Vec<u8> = Vec::with_capacity(32);
         loop {
             let c: u8 = read_struct(&mut reader)?;
@@ -112,21 +103,20 @@ impl Readable for ZString {
         Ok(s)
     }
 }
-impl Writable for ZString {
+impl VarSize for ZString {
     fn size(&self) -> usize {
         self.0.len() + 1
     }
-    fn write_here<W: Write>(&self, mut writer: W) -> io::Result<()> {
+}
+impl Writable for ZString {
+    fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         write_many(self.0.bytes(), &mut writer)?;
-        (0 as u8).write_here(writer)
+        (0 as u8).write(writer)
     }
 }
 
-
-macro_attr! {
-    #[derive(Clone, Debug, PartialEq, Eq, NewtypeDeref!, NewtypeDerefMut!)]
-    pub struct BZString(String);
-}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BZString(String);
 
 impl BZString {
     pub fn new<B: AsRef<[u8]>> (chars: B) -> Result<Self, StrError> {
@@ -152,24 +142,26 @@ impl ToString for BZString {
         self.0.clone()
     }
 }
+impl VarSize for BZString {
+    fn size(&self) -> usize {
+        self.0.len() + 2 // length byte + chars + null
+    }
+}
 impl Readable for BZString {
-    fn read_here<R: Read + Seek>(mut reader: R, _: &()) -> io::Result<Self> {
-        let length: u8 = read_struct(&mut reader)?;
-        let mut chars: Vec<u8> = vec![0u8; (length - 1) as usize]; // length field includes null.
+    fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+        let len = u8::read(&mut reader)?;
+        let mut chars: Vec<u8> = vec![0u8; (len - 1) as usize]; // length field includes null.
         reader.read_exact(&mut chars)?;
-        reader.seek(SeekFrom::Current(1))?; // skip null byte.
+        u8::read(&mut reader)?; // skip null byte
         let s = Self::try_from(chars)?;
         Ok(s)
     }
 }
 impl Writable for BZString {
-    fn size(&self) -> usize {
-        self.0.len() + 2 // length byte + chars + null
-    }
-    fn write_here<W: Write>(&self, mut out: W) -> io::Result<()> {
-        (self.0.len() as u8 + 1).write_here(&mut out)?;
+    fn write<W: Write>(&self, mut out: W) -> io::Result<()> {
+        (self.0.len() as u8 + 1).write(&mut out)?;
         write_many(self.0.bytes(), &mut out)?;
-        (0 as u8).write_here(&mut out)
+        (0 as u8).write(&mut out)
     }
 }
 

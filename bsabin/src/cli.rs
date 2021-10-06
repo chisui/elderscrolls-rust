@@ -108,7 +108,7 @@ pub enum VersionSlug {
     V103, Tes4, Oblivion,
     V104, Tes5, Skyrim, Fallout3, F3, Fnv, NewVegas, FalloutNewVegas,
     V105, Tes5se, SkyrimSE,
-    V200, Fallout4, F4, Fallout76, F76,
+    BA2, V200, Fallout4, F4, Fallout76, F76,
 }
 use VersionSlug::*;
 impl From<&VersionSlug> for Version {
@@ -118,7 +118,7 @@ impl From<&VersionSlug> for Version {
             V103 | Tes4 | Oblivion => Version::V10X(Version10X::V103),
             V104 | Tes5 | Skyrim | Fallout3 | F3 | Fnv | NewVegas | FalloutNewVegas => Version::V10X(Version10X::V104),
             V105 | Tes5se | SkyrimSE => Version::V10X(Version10X::V105),
-            V200 | Fallout4 | F4 | Fallout76 | F76 => Version::V200(0),
+            BA2  | V200 | Fallout4 | F4 | Fallout76 | F76 => Version::BA2(0),
         }
     }
 }

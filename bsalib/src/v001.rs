@@ -9,10 +9,16 @@ use std::{
 use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 
-use crate::{Hash, Version, bin::{
-        read_struct, Readable, Writable, DataSource, Positioned,
-        derive_readable_via_pod, derive_writable_via_pod,
-    }, magicnumber::MagicNumber, read::{self, BsaFile}, str::{StrError, ZString}, write::{self, BsaDirSource}};
+use crate::{Hash, Version, bin::{Fixed, ReadableFixed, WritableFixed}};
+use crate::bin::{
+    Readable, Writable, DataSource, Positioned,
+    read_fixed_default, write_fixed_default,
+    derive_readable_via_pod, derive_writable_via_pod,
+};
+use crate::write::{self, BsaDirSource};
+use crate::str::{StrError, ZString};
+use crate::read::{self, BsaFile};
+use crate::version::{MagicNumber};
 
 
 #[derive(Debug, Error)]
@@ -38,13 +44,17 @@ impl fmt::Display for Header {
         writeln!(f, "file_count: {}", self.file_count)
     }
 }
-
-impl Readable for Header {
-    fn offset(_: &()) -> Option<usize> {
-        Some(size_of::<MagicNumber>())
+impl Fixed for Header {
+    fn pos() -> usize { size_of::<MagicNumber>() }
+}
+impl ReadableFixed for Header {
+    fn read_fixed<R: Read + Seek>(reader: R) -> io::Result<Self> {
+        read_fixed_default(reader)
     }
-    fn read_here<R: Read + Seek>(reader: R, _: &()) -> io::Result<Self> {
-        read_struct(reader)
+}
+impl WritableFixed for Header {
+    fn write_fixed<W: Write + Seek>(&self, writer: W) -> io::Result<()> {
+        write_fixed_default(self, writer)
     }
 }
 derive_writable_via_pod!(Header);
@@ -81,17 +91,17 @@ impl<R: Read + Seek> BsaReader<R> {
         let file_count = self.header.file_count as usize;
         self.reader.seek(SeekFrom::Start(offset_after_header()))?;
         
-        let recs = FileRecord::read_many0(&mut self.reader, file_count)?;
-        let name_offsets = u32::read_many0(&mut self.reader, file_count)?;
+        let recs = FileRecord::read_many(&mut self.reader, file_count)?;
+        let name_offsets = u32::read_many(&mut self.reader, file_count)?;
         
         self.reader.seek(SeekFrom::Start(offset_after_header() + self.header.offset_hash_table as u64))?;
-        let hashes = Hash::read_many0(&mut self.reader, file_count)?;
+        let hashes = Hash::read_many(&mut self.reader, file_count)?;
         
         recs.iter().zip(name_offsets).zip(hashes)
             .map(|((rec, name_offset), hash)| {
                 let name_pos = offset_names_start(file_count as u64) + name_offset as u64;
                 self.reader.seek(SeekFrom::Start(name_pos))?;
-                let name = match ZString::read_here0(&mut self.reader) {
+                let name = match ZString::read(&mut self.reader) {
                     Ok(n) => n,
                     Err(err) => panic!("could not read name at {}: {}", name_pos, err),
                 };
@@ -115,7 +125,7 @@ where P: AsRef<Path> {
 }
 pub fn read<R>(mut reader: R) -> io::Result<BsaReader<R>>
 where R: Read + Seek {
-    let header = Header::read0(&mut reader)?;
+    let header = Header::read_fixed(&mut reader)?;
     Ok(BsaReader {
         reader,
         header,
@@ -181,12 +191,12 @@ impl write::BsaWriter for V001 {
             }
         }
 
-        Version::V001.write_here(&mut out)?;
+        Version::V001.write_fixed(&mut out)?;
         let header = Header {
             offset_hash_table,
             file_count: files.len() as u32,
         };
-        header.write_here(&mut out)?;
+        header.write(&mut out)?;
       
         let mut recs: Vec<Positioned<FileRecord>> = Vec::new();
         for _ in &files {
@@ -206,11 +216,11 @@ impl write::BsaWriter for V001 {
             println!("write name at {}", name_offset.data);
             let name = ZString::new(&file.name)
                 .map_err(|err| V001WriteError::StrErr(file.name.clone(), err))?;
-            name.write_here(&mut out)?;
+            name.write(&mut out)?;
             name_offset.update(&mut out)?;
         }
         for (hash, _) in &files {
-            hash.write_here(&mut out)?;
+            hash.write(&mut out)?;
         }
         for (rec, (_, file)) in recs.iter_mut().zip(&files) {
             let pos = out.stream_position()? as u32;
@@ -229,7 +239,6 @@ impl write::BsaWriter for V001 {
 mod tests {
     use crate::{
         Hash,
-        bin::Readable,
         read::BsaReader,
         write::test as w_test,
         Version,
@@ -241,7 +250,7 @@ mod tests {
     fn writes_version() {
         let mut bytes = w_test::bsa_bytes::<V001, _>(w_test::some_bsa_dirs());
 
-        let v = Version::read0(&mut bytes)
+        let v = Version::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read version {}", err));
         assert_eq!(v, Version::V001);
     }
@@ -250,7 +259,7 @@ mod tests {
     fn writes_header() {
         let mut bytes = w_test::bsa_bytes::<V001, _>(w_test::some_bsa_dirs());
 
-        let header = Header::read0(&mut bytes)
+        let header = Header::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
 
         assert_eq!(header.offset_hash_table, 16, "offset_hash_table");

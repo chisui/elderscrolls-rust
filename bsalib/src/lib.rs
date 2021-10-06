@@ -2,11 +2,10 @@
 #![feature(associated_type_defaults, wrapping_int_impl, specialization)]
 #[macro_use]
 mod bin;
+mod str;
 pub mod read;
 pub mod write;
-pub mod str;
 pub mod hash;
-pub mod magicnumber;
 pub mod version;
 pub mod v001;
 pub mod v10x;
@@ -19,13 +18,10 @@ use std::{
     fs::File,
     path::Path,
 };
+use bin::ReadableFixed;
 use thiserror::Error;
 
-use crate::{
-    read::{BsaReader, BsaDir, BsaFile},
-    bin::Readable,
-};
-
+use crate::read::{BsaReader, BsaDir, BsaFile};
 pub use crate::{
     hash::Hash,
     version::{Version, Version10X},
@@ -34,6 +30,7 @@ pub use crate::{
     v104::V104,
     v105::V105,
 };
+
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error)]
 pub enum ForSomeBsaVersion<A001, A103, A104, A105> {
@@ -65,7 +62,7 @@ where P: AsRef<Path> {
 }
 pub fn read<R>(mut reader: R) -> Result<SomeBsaReader<R>>
 where R: Read + Seek {
-    let v = Version::read0(&mut reader)?;
+    let v = Version::read_fixed(&mut reader)?;
     v.read(reader)
 }
 

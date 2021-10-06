@@ -7,7 +7,6 @@ use bytemuck::{Zeroable, Pod};
 
 
 use super::{
-    bin::{read_struct, write_struct, Readable, Writable},
     version::Version10X,
     hash::Hash,
     v10x::{self, V10XReader, V10XWriter, V10XWriterOptions, Versioned},
@@ -25,17 +24,8 @@ pub struct RawDirRecord {
     pub offset: u32,
     pub _padding_post: u32,
 }
-impl Readable for RawDirRecord {
-    fn read_here<R: Read + Seek>(reader: R, _: &()) -> Result<Self> {
-        read_struct(reader)
-    }
-}
-impl Writable for RawDirRecord {
-    fn size(&self) -> usize { core::mem::size_of::<Self>() }
-    fn write_here<W: Write>(&self, out: W) -> Result<()> {
-        write_struct(self, out)
-    }
-}
+derive_readable_via_pod!(RawDirRecord);
+derive_writable_via_pod!(RawDirRecord);
 impl From<RawDirRecord> for v10x::DirRecord {
     fn from(rec: RawDirRecord) -> Self {
         Self {
@@ -109,20 +99,13 @@ mod tests {
     use std::io::{Cursor, SeekFrom};
     use enumflags2::BitFlags;
     use super::*;
-    use crate::{
-        str::BZString,
-        Hash,
-        read::{BsaReader},
-        write::{BsaDirSource, test::*},
-        version::{Version, Version10X},
-        v105,
-    };
+    use crate::{Hash, bin::{Readable, ReadableFixed, ReadableParam}, read::{BsaReader}, str::BZString, v105, version::{Version, Version10X}, write::{BsaDirSource, test::*}};
 
     #[test]
     fn writes_version() {
         let mut bytes = some_bsa_bytes::<V105>();
 
-        let v = Version::read0(&mut bytes)
+        let v = Version::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read version {}", err));
         assert_eq!(v, Version::V10X(Version10X::V105));
     }
@@ -131,7 +114,7 @@ mod tests {
     fn writes_header() {
         let mut bytes = some_bsa_bytes::<V105>();
 
-        let header = v105::Header::read0(&mut bytes)
+        let header = v105::Header::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
 
         assert_eq!(header.offset, 36, "offset");
@@ -149,10 +132,10 @@ mod tests {
     fn writes_dir_records() {
         let mut bytes = some_bsa_bytes::<V105>();
 
-        v105::Header::read0(&mut bytes)
+        v105::Header::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
             
-        let dirs = RawDirRecord::read_many0(&mut bytes, 1)
+        let dirs = RawDirRecord::read_many(&mut bytes, 1)
             .unwrap_or_else(|err| panic!("could not read dir records {}", err));
 
         assert_eq!(dirs.len(), 1, "dirs.len()");
@@ -165,17 +148,17 @@ mod tests {
         let mut bytes = some_bsa_bytes::<V105>();
 
 
-        let header = v105::Header::read0(&mut bytes)
+        let header = v105::Header::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read Header {}", err));
             
-        let dir_rec = v105::RawDirRecord::read_here0(&mut bytes)
+        let dir_rec = v105::RawDirRecord::read(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read dir rec {}", err));
         
         let offset = dir_rec.offset as u64 - header.total_dir_name_length as u64;
         bytes.seek(SeekFrom::Start(offset))
             .unwrap_or_else(|err| panic!("could not seek to offset {}", err));
 
-        let dir_content = v10x::DirContentRecord::read_here(&mut bytes, &(true, 1))
+        let dir_content = v10x::DirContentRecord::read(&mut bytes, (true, 1))
             .unwrap_or_else(|err| panic!("could not read dir content record {}", err));
 
         assert_eq!(dir_content.name, Some(BZString::new("a").unwrap()), "dir_content.name");

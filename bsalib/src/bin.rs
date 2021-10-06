@@ -19,46 +19,69 @@ pub fn write_struct<S: Pod, W: Write>(val: &S, mut writer: W) -> Result<()> {
 }
 
 
-pub trait Readable: Sized {
-    type Arg = ();
+pub trait Fixed {
+    fn pos() -> usize;
 
-    fn offset0() -> Option<usize> 
-    where Self::Arg: Default {
-        Self::offset(&Self::Arg::default())
+    fn move_to_start<S: Seek>(mut seek: S) -> Result<()> {
+        seek.seek(SeekFrom::Start(Self::pos() as u64))?;
+        Ok(())
     }
-
-    fn offset(_: &Self::Arg) -> Option<usize> {
-        None
-    }
-
-    fn read0<R: Read + Seek>(reader: R) -> Result<Self>
-    where Self::Arg: Default {
-        Self::read(reader, &Self::Arg::default())
-    }
-
-    fn read<R: Read + Seek>(mut reader: R, args: &Self::Arg) -> Result<Self> {
-        if let Some(i) = Self::offset(args) {
-            reader.seek(SeekFrom::Start(i as u64))?;
+}
+pub trait VarSize {
+    fn size(&self) -> usize;
+}
+macro_rules! derive_var_size_via_size_of {
+    ( $t:ty ) => {
+        impl crate::bin::VarSize for $t {
+            fn size(&self) -> usize {
+                std::mem::size_of::<Self>()
+            }
         }
-        Self::read_here(&mut reader, args)
+    };
+}
+pub(crate) use derive_var_size_via_size_of;
+derive_var_size_via_size_of!(u8);
+derive_var_size_via_size_of!(u16);
+derive_var_size_via_size_of!(u32);
+derive_var_size_via_size_of!(u64);
+impl<A: VarSize> VarSize for Vec<A> {
+    fn size(&self) -> usize {
+        self.iter().map(A::size).sum()
     }
-
-    fn read_here<R: Read + Seek>(reader: R, args: &Self::Arg) -> Result<Self>;
-    
-    fn read_here0<R: Read + Seek>(reader: R) -> Result<Self>
-    where Self::Arg: Default {
-        Self::read_here(reader, &Self::Arg::default())
+}
+impl<A: VarSize> VarSize for Option<A> {
+    fn size(&self) -> usize {
+        self.iter().map(A::size).sum()
     }
+}
+pub trait ReadableFixed: Sized {
+    fn read_fixed<R: Read + Seek>(reader: R) -> Result<Self>;
+}
+pub fn read_fixed_default<A: Fixed + Pod, R: Read + Seek>(mut reader: R) -> Result<A> {
+    A::move_to_start(&mut reader)?;
+    read_struct(reader)
+}
+pub trait Readable: Sized {
+    fn read<R: Read>(reader: R) -> Result<Self>;
 
-    fn read_many0<R: Read + Seek>(reader: R, num: usize) -> Result<Vec<Self>>
-    where Self::Arg: Default {
-        Self::read_many(reader, num, &Self::Arg::default())
-    }
-
-    fn read_many<R: Read + Seek>(mut reader: R, num: usize, args: &Self::Arg) -> Result<Vec<Self>> {
+    fn read_many<R: Read>(mut reader: R, num: usize) -> Result<Vec<Self>> {
         let mut vals = Vec::new();
         for _ in 0..num {
-            let val = Self::read_here(&mut reader, args)?;
+            let val = Self::read(&mut reader)?;
+            vals.push(val);
+        }
+        Ok(vals)
+    }
+}
+
+pub trait ReadableParam<P>: Sized {
+    fn read<R: Read>(reader: R, param: P) -> Result<Self>;
+
+    fn read_many<R: Read + Seek>(mut reader: R, num: usize, param: P) -> Result<Vec<Self>>
+    where P: Copy {
+        let mut vals = Vec::new();
+        for _ in 0..num {
+            let val = Self::read(&mut reader, param)?;
             vals.push(val);
         }
         Ok(vals)
@@ -68,7 +91,7 @@ pub trait Readable: Sized {
 macro_rules! derive_readable_via_pod {
     ( $t:ty ) => {
         impl crate::bin::Readable for $t {
-            fn read_here<R: std::io::Read + std::io::Seek>(reader: R, _: &<Self as crate::bin::Readable>::Arg) -> std::io::Result<Self> {
+            fn read<R: std::io::Read>(reader: R) -> std::io::Result<Self> {
                 crate::bin::read_struct(reader)
             }
         }
@@ -80,17 +103,21 @@ derive_readable_via_pod!(u16);
 derive_readable_via_pod!(u32);
 derive_readable_via_pod!(u64);
 
+pub trait WritableFixed: Fixed {
+    fn write_fixed<W: Write + Seek>(&self, writer: W) -> Result<()>;
+}
+pub fn write_fixed_default<A: Fixed + Pod, R: Write + Seek>(val: &A, mut writer: R) -> Result<()> {
+    A::move_to_start(&mut writer)?;
+    write_struct(val, writer)
+}
 pub trait Writable {
-    fn size(&self) -> usize;
-
-    fn write_here<W: Write>(&self, writer: W) -> Result<()>;
+    fn write<W: Write>(&self, writer: W) -> Result<()>;
 }
 
 macro_rules! derive_writable_via_pod {
     ( $t:ty ) => {
         impl crate::bin::Writable for $t {
-            fn size(&self) -> usize { std::mem::size_of::<Self>() }
-            fn write_here<W: std::io::Write>(&self, writer: W) -> std::io::Result<()> {
+            fn write<W: std::io::Write>(&self, writer: W) -> std::io::Result<()> {
                 crate::bin::write_struct(self, writer)
             }
         }
@@ -104,14 +131,9 @@ derive_writable_via_pod!(u64);
 macro_rules! derive_writable_via_into_iter {
     ( $t:tt ) => {
         impl<A: Writable> Writable for $t<A> {
-            fn size(&self) -> usize {
-                self.into_iter()
-                    .map(|a| a.size())
-                    .sum()
-            }
-            fn write_here<W: std::io::Write>(&self, mut out: W) -> std::io::Result<()> {
+            fn write<W: std::io::Write>(&self, mut out: W) -> std::io::Result<()> {
                 for a in self {
-                    a.write_here(&mut out)?;
+                    a.write(&mut out)?;
                 }
                 Ok(())
             }
@@ -126,7 +148,7 @@ derive_writable_via_into_iter!(Option);
 pub fn write_many<I: IntoIterator, W: Write>(vals: I, mut writer: W) -> Result<()>
 where I::Item: Writable {
     for val in vals {
-        val.write_here(&mut writer)?;
+        val.write(&mut writer)?;
     }
     Ok(())
 }
@@ -143,7 +165,7 @@ impl<A: Writable> Positioned<A> {
     
     pub fn new<W: Write + Seek>(data: A, mut out: W) -> Result<Self> {
         let position = out.stream_position()?;
-        data.write_here(&mut out)?;
+        data.write(&mut out)?;
         Ok(Self { position, data })
     }
 
@@ -155,17 +177,9 @@ impl<A: Writable> Positioned<A> {
     pub fn update<W: Write + Seek>(&mut self, mut out: W) -> Result<()> {
         let tmp_pos = out.stream_position()?;
         out.seek(SeekFrom::Start(self.position))?;
-        self.data.write_here(&mut out)?;
+        self.data.write(&mut out)?;
         out.seek(SeekFrom::Start(tmp_pos))?;
         Ok(())
-    }
-}
-impl<A: Readable> Readable for Positioned<A> {
-    type Arg = A::Arg;
-    fn read_here<R: Read + Seek>(mut reader: R, arg: &A::Arg) -> Result<Self> {
-        let position = reader.stream_position()?;
-        let data = A::read_here(reader, arg)?;
-        Ok(Positioned { position, data })
     }
 }
 
@@ -204,18 +218,33 @@ pub(crate) mod test {
     use std::fmt::Debug;
     use super::*;
     
-    pub fn write_read_identity<A: Writable + Readable<Arg = ()> + Debug + Eq>(expected: A) {
+    pub fn write_read_identity<A: Writable + Readable + Debug + Eq>(expected: A) {
         let actual = write_read(&expected);
 
         assert_eq!(expected, actual)
     }
 
-    pub fn write_read<A: Writable + Readable<Arg = ()> + Debug>(val: &A) -> A {
+    pub fn write_read<A: Writable + Readable + Debug>(val: &A) -> A {
         let mut out = Cursor::new(Vec::<u8>::new());
-        val.write_here(&mut out)
+        val.write(&mut out)
             .unwrap_or_else(|err| panic!("could not write {:?}: {}", val, err));
         let mut input = Cursor::new(out.into_inner());
-        A::read_here0(&mut input)
+        A::read(&mut input)
+            .unwrap_or_else(|err| panic!("could not read {:?}: {}", val, err))
+    }
+
+    pub fn write_read_fixed_identity<A: WritableFixed + ReadableFixed + Debug + Eq>(expected: A) {
+        let actual = write_read_fixed(&expected);
+
+        assert_eq!(expected, actual)
+    }
+
+    pub fn write_read_fixed<A: WritableFixed + ReadableFixed + Debug>(val: &A) -> A {
+        let mut out = Cursor::new(Vec::<u8>::new());
+        val.write_fixed(&mut out)
+            .unwrap_or_else(|err| panic!("could not write {:?}: {}", val, err));
+        let mut input = Cursor::new(out.into_inner());
+        A::read_fixed(&mut input)
             .unwrap_or_else(|err| panic!("could not read {:?}: {}", val, err))
     }
 }
