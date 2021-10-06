@@ -5,7 +5,7 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::bin::{Readable, VarSize, Writable, read_struct, write_many};
+use crate::bin::{Readable, VarSize, Writable, read_struct};
 
 
 #[derive(Debug, Error)]
@@ -59,7 +59,7 @@ impl VarSize for BString {
 impl Writable for BString {
     fn write<W: Write>(&self, mut out: W) -> io::Result<()> {
         (self.0.len() as u8).write(&mut out)?;
-        write_many(self.0.bytes(), &mut out)?;
+        self.0.as_bytes().write(&mut out)?;
         (0 as u8).write(&mut out)
     }
 }
@@ -110,7 +110,7 @@ impl VarSize for ZString {
 }
 impl Writable for ZString {
     fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        write_many(self.0.bytes(), &mut writer)?;
+        self.0.as_bytes().write(&mut writer)?;
         (0 as u8).write(writer)
     }
 }
@@ -160,7 +160,7 @@ impl Readable for BZString {
 impl Writable for BZString {
     fn write<W: Write>(&self, mut out: W) -> io::Result<()> {
         (self.0.len() as u8 + 1).write(&mut out)?;
-        write_many(self.0.bytes(), &mut out)?;
+        self.0.as_bytes().write(&mut out)?;
         (0 as u8).write(&mut out)
     }
 }

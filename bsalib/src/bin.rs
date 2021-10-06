@@ -113,6 +113,14 @@ pub fn write_fixed_default<A: Fixed + Pod, R: Write + Seek>(val: &A, mut writer:
 pub trait Writable {
     fn write<W: Write>(&self, writer: W) -> Result<()>;
 }
+impl<A: Writable> Writable for [A] {
+    fn write<W: Write>(&self, mut writer: W) -> Result<()> {
+        for val in self {
+            val.write(&mut writer)?;
+        }
+        Ok(())
+    }
+}
 
 macro_rules! derive_writable_via_pod {
     ( $t:ty ) => {
@@ -143,15 +151,6 @@ macro_rules! derive_writable_via_into_iter {
 pub(crate) use derive_writable_via_into_iter;
 derive_writable_via_into_iter!(Vec);
 derive_writable_via_into_iter!(Option);
-
-
-pub fn write_many<I: IntoIterator, W: Write>(vals: I, mut writer: W) -> Result<()>
-where I::Item: Writable {
-    for val in vals {
-        val.write(&mut writer)?;
-    }
-    Ok(())
-}
 
 pub const fn concat_bytes([a, b, c, d]: [u8; 4]) -> u32 {
     (a as u32) | ((b as u32) << 8) | ((c as u32) << 16) | ((d as u32) << 24)
