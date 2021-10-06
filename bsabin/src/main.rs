@@ -5,7 +5,7 @@ use clap::Clap;
 use glob::{Pattern, MatchOptions};
 use thiserror::Error;
 
-use bsalib::{SomeBsaReader, SomeBsaRoot, Version, V001, V105, BsaWriterOptionsV105, ArchiveFlagV105};
+use bsalib::{ArchiveFlagV105, BsaWriterV001, BsaWriterV105, SomeBsaReader, SomeBsaRoot, Version};
 use bsalib::{BsaWriter, list_dir};
 use bsalib::{BsaReader, BsaEntry, EntryId};
 use bsalib;
@@ -208,11 +208,11 @@ impl Cmd for Create {
 
         match &self.args {
             CreateArgs::V001 => {
-                V001::write_bsa((), dirs, file)
+                BsaWriterV001{}.write_bsa( dirs, file)
                     .map_err(|err| Error::new(ErrorKind::Other, err))?;
             },
             CreateArgs::V105(args) => {
-                let mut opts = BsaWriterOptionsV105::default();
+                let mut opts = BsaWriterV105::default();
                 if args.compress {
                     opts.archive_flags |= ArchiveFlagV105::CompressedArchive;
                 }
@@ -220,7 +220,7 @@ impl Cmd for Create {
                 if args.embed_file_names {
                     opts.archive_flags |= ArchiveFlagV105::EmbedFileNames;
                 }
-                V105::write_bsa(opts, dirs, file)?;
+                opts.write_bsa(dirs, file)?;
             },
             v => print!("unsupported version: {}", Version::from(v)),
         }

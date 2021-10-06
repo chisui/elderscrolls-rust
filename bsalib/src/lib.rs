@@ -17,17 +17,15 @@ use std::io::{Read, Seek, Write, Result};
 use bin::ReadableFixed;
 use thiserror::Error;
 
-pub use crate::{
-    hash::Hash,
-    version::{Version, Version10X, BA2Type},
-    read::{open, BsaReader, BsaDir, BsaFile, BsaEntry, EntryId},
-    write::{BsaDirSource, BsaFileSource, BsaWriter, list_dir},
-    v001::{V001, BsaReaderV001, HeaderV001, BsaWriterV001},
-    v10x::ToArchiveBitFlags,
-    v103::{V103, BsaReaderV103, HeaderV103, BsaWriterV103, BsaWriterOptionsV103, ArchiveFlagV103},
-    v104::{V104, BsaReaderV104, HeaderV104, BsaWriterV104, BsaWriterOptionsV104, ArchiveFlagV104},
-    v105::{V105, BsaReaderV105, HeaderV105, BsaWriterV105, BsaWriterOptionsV105, ArchiveFlagV105},
-};
+pub use crate::hash::Hash;
+pub use crate::version::{Version, Version10X, BA2Type};
+pub use crate::read::{open, BsaReader, BsaDir, BsaFile, BsaEntry, EntryId};
+pub use crate::write::{BsaDirSource, BsaFileSource, BsaWriter, list_dir};
+pub use crate::v001::{V001, BsaReaderV001, HeaderV001, BsaWriterV001};
+pub use crate::v10x::ToArchiveBitFlags;
+pub use crate::v103::{V103, BsaReaderV103, HeaderV103, BsaWriterV103, ArchiveFlagV103};
+pub use crate::v104::{V104, BsaReaderV104, HeaderV104, BsaWriterV104, ArchiveFlagV104};
+pub use crate::v105::{V105, BsaReaderV105, HeaderV105, BsaWriterV105, ArchiveFlagV105};
 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error)]
@@ -38,7 +36,6 @@ pub enum ForSomeBsaVersion<A001, A103, A104, A105> {
     #[error("{0}")] V105(A105),
 }
 impl<A001, A103, A104, A105> ForSomeBsaVersion<A001, A103, A104, A105> {
-
     pub fn version(&self) -> Version {
         match self {
             ForSomeBsaVersion::V001(_) => Version::V001,
@@ -56,17 +53,16 @@ pub enum SomeBsaRoot {
     Dirs(Vec<BsaDir>),
     Files(Vec<BsaFile>),
 }
-impl<R> BsaReader for ForSomeBsaVersion<BsaReaderV001<R>, BsaReaderV103<R>, BsaReaderV104<R>, BsaReaderV105<R>>
+impl<R> BsaReader for SomeBsaReader<R>
 where R: Read + Seek {
     type Header = SomeBsaHeader;
     type Root = SomeBsaRoot;
     type In = R;
 
     fn read_bsa(mut reader: R) -> Result<Self> {
-        let v = Version::read_fixed(&mut reader)?;
-        v.read(reader)
+        Version::read_fixed(&mut reader)?
+            .read_bsa(reader)
     }
-
 
     fn header(&self) -> Self::Header {
         match self {

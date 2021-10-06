@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    io::{self, Write, Seek},
-};
+use std::{fs, io::{self, Write, Seek}, path::{Path, PathBuf}, slice::Iter};
 use super::bin::DataSource;
 
 
@@ -16,6 +12,14 @@ impl<D> BsaDirSource<D> {
         Self { name, files }
     }
 }
+impl<'a, D> IntoIterator for &'a BsaDirSource<D> {
+    type Item = &'a BsaFileSource<D>;
+    type IntoIter = Iter<'a, BsaFileSource<D>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.files.iter()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BsaFileSource<D> {
     pub name: String,
@@ -28,10 +32,9 @@ impl<D> BsaFileSource<D> {
     }
 }
 pub trait BsaWriter {
-    type Options;
     type Err = io::Error;
 
-    fn write_bsa<DS, D, W>(opts: Self::Options, dirs: DS, out: W) -> Result<(), Self::Err>
+    fn write_bsa<DS, D, W>(&self, dirs: DS, out: W) -> Result<(), Self::Err>
     where
         D: DataSource,
         DS: IntoIterator<Item = BsaDirSource<D>>,
@@ -80,22 +83,21 @@ pub(crate) mod test {
         ]
     }
 
-    pub fn bsa_bytes<W: BsaWriter, D: DataSource>(dirs: Vec<BsaDirSource<D>>) -> Cursor<Vec<u8>>
+    pub fn bsa_bytes<W: BsaWriter, D: DataSource>(writer: W, dirs: Vec<BsaDirSource<D>>) -> Cursor<Vec<u8>>
     where
-        W::Options: Default,
         W::Err: Display,
     {
         let mut out = Cursor::new(Vec::<u8>::new());
-        W::write_bsa(W::Options::default(), dirs, &mut out)
+        writer.write_bsa(dirs, &mut out)
             .unwrap_or_else(|err| panic!("could not write bsa {}", err));
         Cursor::new(out.into_inner())
     }
 
     pub fn some_bsa_bytes<W: BsaWriter>() -> Cursor<Vec<u8>>
     where
-        W::Options: Default,
+        W: Default,
         W::Err: Display,
     {
-        bsa_bytes::<W, _>(some_bsa_dirs())
+        bsa_bytes(W::default(), some_bsa_dirs())
     }
 }

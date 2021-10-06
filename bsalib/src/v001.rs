@@ -10,7 +10,6 @@ use thiserror::Error;
 use crate::{Hash, Version, bin::{Fixed, ReadableFixed, WritableFixed}, read};
 use crate::bin::{
     Readable, Writable, DataSource, Positioned,
-    read_fixed_default, write_fixed_default,
     derive_readable_via_pod, derive_writable_via_pod,
 };
 use crate::write::{self, BsaDirSource};
@@ -45,17 +44,8 @@ impl fmt::Display for HeaderV001 {
 impl Fixed for HeaderV001 {
     fn pos() -> usize { size_of::<MagicNumber>() }
 }
-impl ReadableFixed for HeaderV001 {
-    fn read_fixed<R: Read + Seek>(reader: R) -> io::Result<Self> {
-        read_fixed_default(reader)
-    }
-}
-impl WritableFixed for HeaderV001 {
-    fn write_fixed<W: Write + Seek>(&self, writer: W) -> io::Result<()> {
-        write_fixed_default(self, writer)
-    }
-}
-derive_writable_via_pod!(HeaderV001);
+derive_readable_fixed_via_default!(HeaderV001);
+derive_writable_fixed_via_default!(HeaderV001);
 
 
 #[repr(C)]
@@ -78,8 +68,13 @@ const fn offset_after_index(header: &HeaderV001) -> u64 {
     offset_after_header() + header.offset_hash_table as u64 + (size_of::<Hash>() * header.file_count as usize) as u64
 }
 
-pub enum V001 {}
+pub struct V001 {}
 pub type BsaWriterV001 = V001;
+impl Default for V001 {
+    fn default() -> Self {
+        Self {  }
+    }
+}
 pub struct BsaReaderV001<R> {
     reader: R,
     header: HeaderV001,
@@ -149,22 +144,16 @@ where R: Read + Seek {
     }
 }
 impl write::BsaWriter for V001 {
-    type Options = ();
     type Err = V001WriteError;
     
-    fn write_bsa<DS, D, W>(_: (), dirs: DS, mut out: W) -> Result<(), V001WriteError>
+    fn write_bsa<DS, D, W>(&self, dirs: DS, mut out: W) -> Result<(), V001WriteError>
     where
         DS: IntoIterator<Item = BsaDirSource<D>>,
         D: DataSource,
         W: Write + Seek,
     {
-        struct OutFile<D> {
-            name: String,
-            data: D,
-        }
-
         let mut offset_hash_table: u32 = 0;
-        let mut files: BTreeMap<Hash, OutFile<D>> = BTreeMap::new();
+        let mut files: BTreeMap<Hash, (String, D)> = BTreeMap::new(); // has to be ordered by hash
         for dir in dirs {
             for file in dir.files {
                 if file.compressed == Some(true) {
@@ -175,13 +164,10 @@ impl write::BsaWriter for V001 {
                     file.name.to_lowercase());
                 offset_hash_table += (size_of::<(FileRecord, u32)>() + name.len() + 1) as u32;
                 let hash = Hash::v001(&name);
-                if let Some(other) = files.get(&hash) {
-                    return Err(V001WriteError::HashCollision(name, other.name.clone()))
+                if let Some((other, _)) = files.get(&hash) {
+                    return Err(V001WriteError::HashCollision(name, other.clone()))
                 }
-                files.insert(hash, OutFile {
-                    name,
-                    data: file.data,
-                });
+                files.insert(hash, (name, file.data));
             }
         }
 
@@ -190,7 +176,7 @@ impl write::BsaWriter for V001 {
             offset_hash_table,
             file_count: files.len() as u32,
         };
-        header.write(&mut out)?;
+        header.write_fixed(&mut out)?;
       
         let mut recs: Vec<Positioned<FileRecord>> = Vec::new();
         for _ in &files {
@@ -205,22 +191,22 @@ impl write::BsaWriter for V001 {
             name_offsets.push(Positioned::new(0, &mut out)?);
         }
         let offset_names_start = offset_names_start(files.len() as u64) as u32;
-        for (name_offset, (_, file)) in name_offsets.iter_mut().zip(&files) {
+        for (name_offset, (_, (name, _))) in name_offsets.iter_mut().zip(&files) {
             name_offset.data = out.stream_position()? as u32 - offset_names_start;
             println!("write name at {}", name_offset.data);
-            let name = ZString::new(&file.name)
-                .map_err(|err| V001WriteError::StrErr(file.name.clone(), err))?;
+            let name = ZString::new(&name)
+                .map_err(|err| V001WriteError::StrErr(name.clone(), err))?;
             name.write(&mut out)?;
             name_offset.update(&mut out)?;
         }
         for (hash, _) in &files {
             hash.write(&mut out)?;
         }
-        for (rec, (_, file)) in recs.iter_mut().zip(&files) {
+        for (rec, (_, (_, data))) in recs.iter_mut().zip(&files) {
             let pos = out.stream_position()? as u32;
             println!("write file data at: {}", pos);
             rec.data.offset = pos - offset_after_index(&header) as u32;
-            let mut data = file.data.open()?;
+            let mut data = data.open()?;
             rec.data.size = copy(&mut data, &mut out)? as u32;
             rec.update(&mut out)?;
         }
@@ -234,14 +220,14 @@ mod tests {
     use crate::{
         Hash,
         read::BsaReader,
-        write::test as w_test,
+        write::test::*,
         Version,
     };
     use super::*;
 
     #[test]
     fn writes_version() {
-        let mut bytes = w_test::bsa_bytes::<V001, _>(w_test::some_bsa_dirs());
+        let mut bytes = bsa_bytes(V001::default(),some_bsa_dirs());
 
         let v = Version::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read version {}", err));
@@ -250,7 +236,7 @@ mod tests {
 
     #[test]
     fn writes_header() {
-        let mut bytes = w_test::bsa_bytes::<V001, _>(w_test::some_bsa_dirs());
+        let mut bytes = bsa_bytes(BsaWriterV001::default(), some_bsa_dirs());
 
         let header = HeaderV001::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
@@ -261,8 +247,8 @@ mod tests {
 
     #[test]
     fn write_read_identity_bsa() {
-        let dirs = w_test::some_bsa_dirs();
-        let bytes = w_test::bsa_bytes::<V001, _>(dirs.clone());
+        let dirs = some_bsa_dirs();
+        let bytes = bsa_bytes(BsaWriterV001::default(), dirs.clone());
         let mut bsa = BsaReaderV001::read_bsa(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let files = bsa.list()

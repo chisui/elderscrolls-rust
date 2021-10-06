@@ -61,6 +61,15 @@ pub fn read_fixed_default<A: Fixed + Pod, R: Read + Seek>(mut reader: R) -> Resu
     A::move_to_start(&mut reader)?;
     read_struct(reader)
 }
+macro_rules! derive_readable_fixed_via_default {
+    ( $t:ty ) => {
+        impl crate::bin::ReadableFixed for $t {
+            fn read_fixed<R: std::io::Read + std::io::Seek>(reader: R) -> std::io::Result<Self> {
+                crate::bin::read_fixed_default(reader)
+            }
+        }
+    };
+}
 pub trait Readable: Sized {
     fn read_bin<R: Read>(reader: R) -> Result<Self>;
 
@@ -109,6 +118,15 @@ pub trait WritableFixed: Fixed {
 pub fn write_fixed_default<A: Fixed + Pod, R: Write + Seek>(val: &A, mut writer: R) -> Result<()> {
     A::move_to_start(&mut writer)?;
     write_struct(val, writer)
+}
+macro_rules! derive_writable_fixed_via_default {
+    ( $t:ty ) => {
+        impl crate::bin::WritableFixed for $t {
+            fn write_fixed<W: std::io::Write + std::io::Seek>(&self, writer: W) -> std::io::Result<()> {
+                crate::bin::write_fixed_default(self, writer)
+            }
+        }
+    };
 }
 pub trait Writable {
     fn write<W: Write>(&self, writer: W) -> Result<()>;

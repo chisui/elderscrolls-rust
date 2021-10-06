@@ -148,9 +148,9 @@ impl Version {
     where P: AsRef<Path> {
         let file = File::open(path)?;
         let buf = BufReader::new(file);
-        self.read(buf)
+        self.read_bsa(buf)
     }
-    pub fn read<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReader<R>> {
+    pub fn read_bsa<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReader<R>> {
         match self {
             Version::V001 => BsaReaderV001::read_bsa(reader).map(crate::SomeBsaReader::V001),
             Version::V10X(v) => v.read(reader),
@@ -181,8 +181,8 @@ impl VarSize for Version {
     fn size(&self) -> usize { 
         size_of::<MagicNumber>() + match self {
             Version::V001 => 0,
-            Version::V10X(v) => (*v).size(),
-            Version::BA2(_, _) => size_of::<u32>(),
+            Version::V10X(v) => v.size(),
+            Version::BA2(_, v) => v.size(),
         }
     }
 }

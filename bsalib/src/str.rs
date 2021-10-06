@@ -10,7 +10,7 @@ use crate::bin::{Readable, VarSize, Writable, read_struct};
 
 #[derive(Debug, Error)]
 pub enum StrError {
-    #[error("string may only be {0} chars or less long since their length is stored in a byte")]
+    #[error("string may only be {0} chars or less long")]
     TooLong(usize),
     #[error("{0}")]
     Utf8Error(#[from] str::Utf8Error),
@@ -93,7 +93,7 @@ impl Readable for ZString {
     fn read_bin<R: Read>(mut reader: R) -> io::Result<Self> {
         let mut chars: Vec<u8> = Vec::with_capacity(32);
         loop {
-            let c: u8 = read_struct(&mut reader)?;
+            let c = u8::read_bin(&mut reader)?;
             if c == 0 {
                 break;
             }
