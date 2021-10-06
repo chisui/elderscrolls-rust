@@ -5,10 +5,9 @@ use clap::Clap;
 use glob::{Pattern, MatchOptions};
 use thiserror::Error;
 
-use bsalib::{SomeBsaReader, SomeBsaRoot, Version, V001, V105};
-use bsalib::write::{BsaWriter, list_dir};
-use bsalib::read::{BsaReader, BsaEntry, EntryId};
-use bsalib::v105;
+use bsalib::{SomeBsaReader, SomeBsaRoot, Version, V001, V105, BsaWriterOptionsV105, ArchiveFlagV105};
+use bsalib::{BsaWriter, list_dir};
+use bsalib::{BsaReader, BsaEntry, EntryId};
 use bsalib;
 
 mod cli;
@@ -213,13 +212,13 @@ impl Cmd for Create {
                     .map_err(|err| Error::new(ErrorKind::Other, err))?;
             },
             CreateArgs::V105(args) => {
-                let mut opts = v105::BsaWriterOptions::default();
+                let mut opts = BsaWriterOptionsV105::default();
                 if args.compress {
-                    opts.archive_flags |= v105::ArchiveFlag::CompressedArchive;
+                    opts.archive_flags |= ArchiveFlagV105::CompressedArchive;
                 }
                 
                 if args.embed_file_names {
-                    opts.archive_flags |= v105::ArchiveFlag::EmbedFileNames;
+                    opts.archive_flags |= ArchiveFlagV105::EmbedFileNames;
                 }
                 V105::write_bsa(opts, dirs, file)?;
             },

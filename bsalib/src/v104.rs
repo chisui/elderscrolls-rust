@@ -23,7 +23,7 @@ use crate::{
 #[bitflags]
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum ArchiveFlag {
+pub enum ArchiveFlagV104 {
     #[doc = "The game may not load a BSA without this bit set."]
     IncludeDirectoryNames = 0x1,
     #[doc = "The game may not load a BSA without this bit set."]
@@ -50,7 +50,7 @@ pub enum ArchiveFlag {
 }
 
 
-impl ToArchiveBitFlags for ArchiveFlag {
+impl ToArchiveBitFlags for ArchiveFlagV104 {
     fn to_archive_bit_flags(bits: u32) -> BitFlags<Self> {
         BitFlags::from_bits_truncate(bits)
     }
@@ -58,14 +58,17 @@ impl ToArchiveBitFlags for ArchiveFlag {
         flags.bits()
     }
 
-    fn is_compressed_by_default() -> Self { ArchiveFlag::CompressedArchive }
-    fn includes_file_names() -> Self { ArchiveFlag::IncludeFileNames }
-    fn includes_dir_names() -> Self { ArchiveFlag::IncludeDirectoryNames }
-    fn embed_file_names() -> Option<Self> { Some(ArchiveFlag::EmbedFileNames) }
+    fn is_compressed_by_default() -> Self { ArchiveFlagV104::CompressedArchive }
+    fn includes_file_names() -> Self { ArchiveFlagV104::IncludeFileNames }
+    fn includes_dir_names() -> Self { ArchiveFlagV104::IncludeDirectoryNames }
+    fn embed_file_names() -> Option<Self> { Some(ArchiveFlagV104::EmbedFileNames) }
 }
 
-pub type HeaderV104 = HeaderV10X<ArchiveFlag>;
-pub type BsaReaderV104<R> = BsaReaderV10X<R, V104, ArchiveFlag, DirRecord>;
+pub type HeaderV104 = HeaderV10X<ArchiveFlagV104>;
+pub type BsaReaderV104<R> = BsaReaderV10X<R, V104, ArchiveFlagV104, DirRecord>;
+pub type BsaWriterV104 = BsaWriterV10X<V104, ArchiveFlagV104, DirRecord>;
+pub type BsaWriterOptionsV104 = BsaWriterOptionsV10X<ArchiveFlagV104>;
+
 pub enum V104 {}
 impl write::BsaWriter for V104 {
     type Options = BsaWriterOptionsV104;
@@ -75,7 +78,7 @@ impl write::BsaWriter for V104 {
         D: crate::bin::DataSource,
         DS: IntoIterator<Item = write::BsaDirSource<D>>,
         W: Write + Seek {
-        BsaWriterV10X::write_bsa(opts, dirs, out)
+        BsaWriterV104::write_bsa(opts, dirs, out)
     }
 }
 
@@ -90,9 +93,6 @@ impl Versioned for V104 {
         v103::V103::compress(reader, writer)
     }
 }
-
-pub type BsaWriterV104 = BsaWriterV10X<V104, ArchiveFlag, DirRecord>;
-pub type BsaWriterOptionsV104 = BsaWriterOptionsV10X<ArchiveFlag>;
 
 
 #[cfg(test)]
@@ -120,8 +120,8 @@ mod tests {
 
         assert_eq!(header.offset, 36, "offset");
         assert_eq!(header.archive_flags, BitFlags::empty()
-            | v104::ArchiveFlag::IncludeFileNames
-            | v104::ArchiveFlag::IncludeDirectoryNames);
+            | v104::ArchiveFlagV104::IncludeFileNames
+            | v104::ArchiveFlagV104::IncludeDirectoryNames);
         assert_eq!(header.dir_count, 1, "dir_count");
         assert_eq!(header.file_count, 1, "file_count");
         assert_eq!(header.total_dir_name_length, 2, "total_dir_name_length");

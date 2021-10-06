@@ -23,7 +23,7 @@ use crate::{
 #[bitflags]
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum ArchiveFlag {
+pub enum ArchiveFlagV103 {
     #[doc = "The game may not load a BSA without this bit set."]
     IncludeDirectoryNames = 0x1,
     #[doc = "The game may not load a BSA without this bit set."]
@@ -44,7 +44,7 @@ pub enum ArchiveFlag {
     Ux200 = 0x200,
     Ux400 = 0x400,
 }
-impl ToArchiveBitFlags for ArchiveFlag {
+impl ToArchiveBitFlags for ArchiveFlagV103 {
     fn to_archive_bit_flags(bits: u32) -> BitFlags<Self> {
         BitFlags::from_bits_truncate(bits)
     }
@@ -53,9 +53,9 @@ impl ToArchiveBitFlags for ArchiveFlag {
     }
     
 
-    fn is_compressed_by_default() -> Self { ArchiveFlag::CompressedArchive }
-    fn includes_file_names() -> Self { ArchiveFlag::IncludeFileNames }
-    fn includes_dir_names() -> Self { ArchiveFlag::IncludeDirectoryNames }
+    fn is_compressed_by_default() -> Self { ArchiveFlagV103::CompressedArchive }
+    fn includes_file_names() -> Self { ArchiveFlagV103::IncludeFileNames }
+    fn includes_dir_names() -> Self { ArchiveFlagV103::IncludeDirectoryNames }
 }
 
 pub enum V103 {}
@@ -87,10 +87,10 @@ impl Versioned for V103 {
     }
 }
 
-pub type HeaderV103 = HeaderV10X<ArchiveFlag>;
-pub type BsaReaderV103<R> = BsaReaderV10X<R, V103, ArchiveFlag, DirRecord>;
-pub type BsaWriterV103 = BsaWriterV10X<V103, ArchiveFlag, DirRecord>;
-pub type BsaWriterOptionsV103 = BsaWriterOptionsV10X<ArchiveFlag>;
+pub type HeaderV103 = HeaderV10X<ArchiveFlagV103>;
+pub type BsaReaderV103<R> = BsaReaderV10X<R, V103, ArchiveFlagV103, DirRecord>;
+pub type BsaWriterV103 = BsaWriterV10X<V103, ArchiveFlagV103, DirRecord>;
+pub type BsaWriterOptionsV103 = BsaWriterOptionsV10X<ArchiveFlagV103>;
 
 
 #[cfg(test)]
@@ -118,8 +118,8 @@ mod tests {
 
         assert_eq!(header.offset, 36, "offset");
         assert_eq!(header.archive_flags, BitFlags::empty()
-            | v103::ArchiveFlag::IncludeFileNames
-            | v103::ArchiveFlag::IncludeDirectoryNames);
+            | ArchiveFlagV103::IncludeFileNames
+            | ArchiveFlagV103::IncludeDirectoryNames);
         assert_eq!(header.dir_count, 1, "dir_count");
         assert_eq!(header.file_count, 1, "file_count");
         assert_eq!(header.total_dir_name_length, 2, "total_dir_name_length");

@@ -622,7 +622,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
-    use crate::v105::{self, HeaderV105};
+    use crate::v105::{HeaderV105, ArchiveFlagV105};
     use super::*;
 
     #[test]
@@ -630,8 +630,8 @@ mod tests {
         let header_out = HeaderV105 {
             offset: 12,
             archive_flags: BitFlags::empty()
-                | v105::ArchiveFlag::CompressedArchive
-                | v105::ArchiveFlag::EmbedFileNames,
+                | ArchiveFlagV105::CompressedArchive
+                | ArchiveFlagV105::EmbedFileNames,
             dir_count: 13,
             file_count: 14,
             total_dir_name_length: 15,

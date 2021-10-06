@@ -3,29 +3,30 @@
 #[macro_use]
 mod bin;
 mod str;
-pub mod read;
-pub mod write;
-pub mod hash;
-pub mod version;
-pub mod v001;
-pub mod v10x;
-pub mod v103;
-pub mod v104;
-pub mod v105;
+mod read;
+mod write;
+mod hash;
+mod version;
+mod v001;
+mod v10x;
+mod v103;
+mod v104;
+mod v105;
 
 use std::io::{Read, Seek, Write, Result};
 use bin::ReadableFixed;
 use thiserror::Error;
 
-use crate::read::{BsaReader, BsaDir, BsaFile};
 pub use crate::{
     hash::Hash,
     version::{Version, Version10X, BA2Type},
-    read::open,
-    v001::{V001, BsaReaderV001, HeaderV001},
-    v103::{V103, BsaReaderV103, HeaderV103},
-    v104::{V104, BsaReaderV104, HeaderV104},
-    v105::{V105, BsaReaderV105, HeaderV105},
+    read::{open, BsaReader, BsaDir, BsaFile, BsaEntry, EntryId},
+    write::{BsaDirSource, BsaFileSource, BsaWriter, list_dir},
+    v001::{V001, BsaReaderV001, HeaderV001, BsaWriterV001},
+    v10x::ToArchiveBitFlags,
+    v103::{V103, BsaReaderV103, HeaderV103, BsaWriterV103, BsaWriterOptionsV103, ArchiveFlagV103},
+    v104::{V104, BsaReaderV104, HeaderV104, BsaWriterV104, BsaWriterOptionsV104, ArchiveFlagV104},
+    v105::{V105, BsaReaderV105, HeaderV105, BsaWriterV105, BsaWriterOptionsV105, ArchiveFlagV105},
 };
 
 

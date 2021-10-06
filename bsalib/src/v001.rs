@@ -79,6 +79,7 @@ const fn offset_after_index(header: &HeaderV001) -> u64 {
 }
 
 pub enum V001 {}
+pub type BsaWriterV001 = V001;
 pub struct BsaReaderV001<R> {
     reader: R,
     header: HeaderV001,

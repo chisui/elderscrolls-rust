@@ -18,9 +18,7 @@ use crate::v105::BsaReaderV105;
 
 #[derive(Debug, Error)]
 #[error("Unknown magic number {0:#}")]
-pub enum MagicNumberError {
-    Unknown(u32),
-}
+pub struct UnknownMagicNumber(u32);
 
 #[repr(u32)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -36,13 +34,13 @@ impl From<MagicNumber> for u32 {
     }
 }
 impl TryFrom<u32> for MagicNumber {
-    type Error = MagicNumberError;
-    fn try_from(i: u32) -> Result<Self, MagicNumberError> {
+    type Error = UnknownMagicNumber;
+    fn try_from(i: u32) -> Result<Self, UnknownMagicNumber> {
         if i == MagicNumber::V001 as u32 { Ok(MagicNumber::V001) }
         else if i == MagicNumber::BSA0 as u32 { Ok(MagicNumber::BSA0) }
         else if i == MagicNumber::BTDX as u32 { Ok(MagicNumber::BTDX) }
         else if i == MagicNumber::DX10 as u32 { Ok(MagicNumber::DX10) }
-        else { Err(MagicNumberError::Unknown(i)) }
+        else { Err(UnknownMagicNumber(i)) }
     }
 }
 impl Fixed for MagicNumber {
@@ -74,12 +72,8 @@ impl fmt::Display for MagicNumber {
 struct UnsupportedVersion(pub Version);
 
 #[derive(Debug, Error)]
-pub enum Unknown {
-    #[error("Unknown magic number {0}")]
-    MagicNumber(u32),
-    #[error("Unknown version {0}")]
-    Version(u32),
-}
+#[error("Unknown version {0}")]
+pub struct UnknownVersion(u32);
 
 
 #[repr(u32)]
@@ -118,7 +112,7 @@ impl ReadableFixed for Version10X {
             103 => Version10X::V103,
             104 => Version10X::V104,
             105 => Version10X::V105,
-            v => return Err(io::Error::new(io::ErrorKind::InvalidData, Unknown::Version(v))),
+            v => return Err(io::Error::new(io::ErrorKind::InvalidData, UnknownVersion(v))),
         })
     }
 }

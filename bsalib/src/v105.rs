@@ -7,8 +7,7 @@ use crate::{
     v10x::{self, BsaReaderV10X, BsaWriterV10X, BsaWriterOptionsV10X, Versioned},
     write,
 };
-use crate::v104::HeaderV104;
-pub use crate::v104::{ArchiveFlag, };
+use crate::v104::{HeaderV104, ArchiveFlagV104};
 
 
 #[repr(C)]
@@ -44,12 +43,11 @@ impl From<v10x::DirRecord> for RawDirRecord {
 }
 
 
-
-
+pub type ArchiveFlagV105 = ArchiveFlagV104;
 pub type HeaderV105 = HeaderV104;
-pub type BsaReaderV105<R> = BsaReaderV10X<R, V105, ArchiveFlag, RawDirRecord>;
-pub type BsaWriterV105 = BsaWriterV10X<V105, ArchiveFlag, RawDirRecord>;
-pub type BsaWriterOptionsV105 = BsaWriterOptionsV10X<ArchiveFlag>;
+pub type BsaReaderV105<R> = BsaReaderV10X<R, V105, ArchiveFlagV105, RawDirRecord>;
+pub type BsaWriterV105 = BsaWriterV10X<V105, ArchiveFlagV105, RawDirRecord>;
+pub type BsaWriterOptionsV105 = BsaWriterOptionsV10X<ArchiveFlagV105>;
 
 pub enum V105 {}
 impl write::BsaWriter for V105 {
@@ -105,8 +103,8 @@ mod tests {
 
         assert_eq!(header.offset, 36, "offset");
         assert_eq!(header.archive_flags, BitFlags::empty()
-            | v105::ArchiveFlag::IncludeFileNames
-            | v105::ArchiveFlag::IncludeDirectoryNames);
+            | ArchiveFlagV105::IncludeFileNames
+            | ArchiveFlagV105::IncludeDirectoryNames);
         assert_eq!(header.dir_count, 1, "dir_count");
         assert_eq!(header.file_count, 1, "file_count");
         assert_eq!(header.total_dir_name_length, 2, "total_dir_name_length");
