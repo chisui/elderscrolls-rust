@@ -1,8 +1,6 @@
 use std::{
-    io::{BufReader, Read, Seek, Write, Result},
+    io::{Read, Seek, Write, Result},
     str,
-    path::Path,
-    fs::File,
 };
 use enumflags2::{bitflags, BitFlags};
 
@@ -79,17 +77,6 @@ impl write::BsaWriter for V104 {
         W: Write + Seek {
         BsaWriter::write_bsa(opts, dirs, out)
     }
-}
-
-pub fn open<P>(path: P) -> Result<BsaReader<BufReader<File>>>
-where P: AsRef<Path> {
-    let file = File::open(path)?;
-    let buf = BufReader::new(file);
-    read(buf)
-}
-pub fn read<R>(reader: R) -> Result<BsaReader<R>>
-where R: Read + Seek {
-    BsaReader::read(reader)
 }
 
 impl Versioned for V104 {
@@ -211,7 +198,7 @@ mod tests {
 
     fn check_write_read_identity_bsa(dirs: Vec<BsaDirSource<Vec<u8>>>) {
         let bytes = bsa_bytes::<V104, _>(dirs.clone());
-        let mut bsa = v104::BsaReader::read(bytes)
+        let mut bsa = v104::BsaReader::read_bsa(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let in_dirs = bsa.list()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));

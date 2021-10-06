@@ -7,6 +7,7 @@ use std::fmt;
 
 use thiserror::Error;
 
+use crate::read::BsaReader;
 use crate::bin::{Fixed, Readable, ReadableFixed, VarSize, Writable, WritableFixed, concat_bytes};
 
 
@@ -88,9 +89,9 @@ derive_var_size_via_size_of!(Version10X);
 impl Version10X {
     pub fn read<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReader<R>> {
         match self {
-            Version10X::V103 => crate::v103::read(reader).map(crate::SomeBsaReader::V103),
-            Version10X::V104 => crate::v104::read(reader).map(crate::SomeBsaReader::V104),
-            Version10X::V105 => crate::v105::read(reader).map(crate::SomeBsaReader::V105),
+            Version10X::V103 => crate::v103::BsaReader::read_bsa(reader).map(crate::SomeBsaReader::V103),
+            Version10X::V104 => crate::v104::BsaReader::read_bsa(reader).map(crate::SomeBsaReader::V104),
+            Version10X::V105 => crate::v105::BsaReader::read_bsa(reader).map(crate::SomeBsaReader::V105),
         }
     }
 }
@@ -153,7 +154,7 @@ impl Version {
     }
     pub fn read<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReader<R>> {
         match self {
-            Version::V001 => crate::v001::read(reader).map(crate::SomeBsaReader::V001),
+            Version::V001 => crate::v001::BsaReader::read_bsa(reader).map(crate::SomeBsaReader::V001),
             Version::V10X(v) => v.read(reader),
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, UnsupportedVersion(*self))),
         }
@@ -164,8 +165,8 @@ impl From<&Version> for MagicNumber {
         match version {
             Version::V001    => MagicNumber::V001,
             Version::V10X(_) => MagicNumber::BSA0,
-            Version::BA2(BA2Type::BTDX, _)  => MagicNumber::BTDX,
-            Version::BA2(BA2Type::DX10, _)  => MagicNumber::DX10,
+            Version::BA2(BA2Type::BTDX, _) => MagicNumber::BTDX,
+            Version::BA2(BA2Type::DX10, _) => MagicNumber::DX10,
         }
     }
 }

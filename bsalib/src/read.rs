@@ -1,8 +1,4 @@
-use std::{
-    io::{Result, Write},
-    fmt,
-    slice::Iter,
-};
+use std::{fmt, fs::File, io::{BufReader, Result, Write}, path::Path, slice::Iter};
 use crate::hash::Hash;
 
 
@@ -64,9 +60,22 @@ impl BsaEntry for BsaFile {
     }
 }
 
+
+pub fn open<B, P>(path: P) -> Result<B>
+where
+    B: BsaReader<In = BufReader<File>>,
+    P: AsRef<Path>,
+{
+    let file = File::open(path)?;
+    let buf = BufReader::new(file);
+    B::read_bsa(buf)
+}
 pub trait BsaReader: Sized {
     type Header;
     type Root = Vec<BsaDir>;
+    type In;
+
+    fn read_bsa(input: Self::In) -> Result<Self>;
 
     fn header(&self) -> Self::Header;
 

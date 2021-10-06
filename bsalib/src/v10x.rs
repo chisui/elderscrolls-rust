@@ -190,17 +190,6 @@ where
     T: Versioned,
     AF: ToArchiveBitFlags,
 {
-    pub(crate) fn read(mut reader: R) -> Result<Self> {
-        let header = V10XHeader::<AF>::read_fixed(&mut reader)?;
-        Ok(V10XReader {
-            reader,
-            header,
-            dirs: None,
-            phantom_t: PhantomData,
-            phantom_rdr: PhantomData,
-        })
-    }
-
     fn offset_file_names(&self) -> usize {
         let dir_records_size = size_of::<RDR>() * self.header.dir_count as usize;
         let dir_names_size = if self.header.has(AF::includes_dir_names()) {
@@ -278,6 +267,19 @@ where
     DirRecord: From<RDR>,
 {
     type Header = V10XHeader<AF>;
+    type In = R;
+
+    fn read_bsa(mut reader: R) -> Result<Self> {
+        let header = V10XHeader::<AF>::read_fixed(&mut reader)?;
+        Ok(V10XReader {
+            reader,
+            header,
+            dirs: None,
+            phantom_t: PhantomData,
+            phantom_rdr: PhantomData,
+        })
+    }
+
 
     fn header(&self) -> Self::Header {
         self.header

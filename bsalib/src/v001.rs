@@ -1,15 +1,13 @@
 use std::{
-    io::{self, BufReader, Read, Write, Seek, SeekFrom, copy},
+    io::{self, Read, Write, Seek, SeekFrom, copy},
     collections::BTreeMap,
     mem::size_of,
-    path::Path,
-    fs::File,
     fmt,
 };
 use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 
-use crate::{Hash, Version, bin::{Fixed, ReadableFixed, WritableFixed}};
+use crate::{Hash, Version, bin::{Fixed, ReadableFixed, WritableFixed}, read};
 use crate::bin::{
     Readable, Writable, DataSource, Positioned,
     read_fixed_default, write_fixed_default,
@@ -17,8 +15,8 @@ use crate::bin::{
 };
 use crate::write::{self, BsaDirSource};
 use crate::str::{StrError, ZString};
-use crate::read::{self, BsaFile};
-use crate::version::{MagicNumber};
+use crate::read::BsaFile;
+use crate::version::MagicNumber;
 
 
 #[derive(Debug, Error)]
@@ -117,26 +115,21 @@ impl<R: Read + Seek> BsaReader<R> {
             .collect()
     }
 }
-pub fn open<P>(path: P) -> io::Result<BsaReader<BufReader<File>>>
-where P: AsRef<Path> {
-    let file = File::open(path)?;
-    let buf = BufReader::new(file);
-    read(buf)
-}
-pub fn read<R>(mut reader: R) -> io::Result<BsaReader<R>>
-where R: Read + Seek {
-    let header = Header::read_fixed(&mut reader)?;
-    Ok(BsaReader {
-        reader,
-        header,
-        files: None,
-    })
-}
 impl<R> read::BsaReader for BsaReader<R>
 where R: Read + Seek {
     type Header = Header;
     type Root = Vec<BsaFile>;
+    type In = R;
     
+    fn read_bsa(mut reader: R) -> io::Result<Self> {
+        let header = Header::read_fixed(&mut reader)?;
+        Ok(BsaReader {
+            reader,
+            header,
+            files: None,
+        })
+    }
+
     fn header(&self) -> Header { self.header }
     fn list(&mut self) -> io::Result<Vec<BsaFile>> {
         if let Some(files) = &self.files {
@@ -270,7 +263,7 @@ mod tests {
     fn write_read_identity_bsa() {
         let dirs = w_test::some_bsa_dirs();
         let bytes = w_test::bsa_bytes::<V001, _>(dirs.clone());
-        let mut bsa = v001::read(bytes)
+        let mut bsa = v001::BsaReader::read_bsa(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let files = bsa.list()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));

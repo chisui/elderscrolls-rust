@@ -1,18 +1,13 @@
-use std::{
-    io::{BufReader, Read, Write, Seek, Result, copy},
-    path::Path,
-    fs::File,
-};
+use std::io::{Read, Write, Seek, Result, copy};
 use bytemuck::{Zeroable, Pod};
 
-
-use super::{
+use crate::{
     version::Version10X,
     hash::Hash,
     v10x::{self, V10XReader, V10XWriter, V10XWriterOptions, Versioned},
     write,
 };
-pub use super::v104::{ArchiveFlag, Header};
+pub use crate::v104::{ArchiveFlag, Header};
 
 
 #[repr(C)]
@@ -65,17 +60,6 @@ impl write::BsaWriter for V105 {
         W: Write + Seek {
         BsaWriter::write_bsa(opts, dirs, out)
     }
-}
-
-pub fn open<P>(path: P) -> Result<BsaReader<BufReader<File>>>
-where P: AsRef<Path> {
-    let file = File::open(path)?;
-    let buf = BufReader::new(file);
-    read(buf)
-}
-pub fn read<R>(reader: R) -> Result<BsaReader<R>>
-where R: Read + Seek {
-    BsaReader::read(reader)
 }
 
 impl Versioned for V105 {
@@ -197,7 +181,7 @@ mod tests {
 
     fn check_write_read_identity_bsa(dirs: Vec<BsaDirSource<Vec<u8>>>) {
         let bytes = bsa_bytes::<V105, _>(dirs.clone());
-        let mut bsa = v105::BsaReader::read(bytes)
+        let mut bsa = v105::BsaReader::read_bsa(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let in_dirs = bsa.list()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));

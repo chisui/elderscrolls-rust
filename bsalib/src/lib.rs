@@ -13,11 +13,7 @@ pub mod v103;
 pub mod v104;
 pub mod v105;
 
-use std::{
-    io::{BufReader, Read, Seek, Write, Result},
-    fs::File,
-    path::Path,
-};
+use std::io::{Read, Seek, Write, Result};
 use bin::ReadableFixed;
 use thiserror::Error;
 
@@ -25,6 +21,7 @@ use crate::read::{BsaReader, BsaDir, BsaFile};
 pub use crate::{
     hash::Hash,
     version::{Version, Version10X, BA2Type},
+    read::open,
     v001::V001,
     v103::V103,
     v104::V104,
@@ -54,31 +51,21 @@ impl<A001, A103, A104, A105> ForSomeBsaVersion<A001, A103, A104, A105> {
 pub type SomeBsaHeader = ForSomeBsaVersion<v001::Header, v103::Header, v104::Header, v105::Header>;
 pub type SomeBsaReader<R> = ForSomeBsaVersion<v001::BsaReader<R>, v103::BsaReader<R>, v104::BsaReader<R>, v105::BsaReader<R>>;
 
-pub fn open<P>(path: P) -> Result<SomeBsaReader<BufReader<File>>>
-where P: AsRef<Path> {
-    let file = File::open(path)?;
-    let buf = BufReader::new(file);
-    read(buf)
-}
-pub fn read<R>(mut reader: R) -> Result<SomeBsaReader<R>>
-where R: Read + Seek {
-    let v = Version::read_fixed(&mut reader)?;
-    v.read(reader)
-}
-
 pub enum SomeBsaRoot {
     Dirs(Vec<BsaDir>),
     Files(Vec<BsaFile>),
 }
-impl<A001, A103, A104, A105> BsaReader for ForSomeBsaVersion<A001, A103, A104, A105> 
-where
-    A001: BsaReader<Header = v001::Header, Root = Vec<BsaFile>>,
-    A103: BsaReader<Header = v103::Header, Root = Vec<BsaDir>>,
-    A104: BsaReader<Header = v104::Header, Root = Vec<BsaDir>>,
-    A105: BsaReader<Header = v105::Header, Root = Vec<BsaDir>>,
-{
+impl<R> BsaReader for ForSomeBsaVersion<v001::BsaReader<R>, v103::BsaReader<R>, v104::BsaReader<R>, v105::BsaReader<R>>
+where R: Read + Seek {
     type Header = SomeBsaHeader;
     type Root = SomeBsaRoot;
+    type In = R;
+
+    fn read_bsa(mut reader: R) -> Result<Self> {
+        let v = Version::read_fixed(&mut reader)?;
+        v.read(reader)
+    }
+
 
     fn header(&self) -> Self::Header {
         match self {

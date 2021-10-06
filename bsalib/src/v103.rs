@@ -1,8 +1,6 @@
 use std::{
-    io::{BufReader, Read, Seek, Write, Result, copy},
+    io::{Read, Seek, Write, Result, copy},
     str,
-    path::Path,
-    fs::File,
 };
 use enumflags2::{bitflags, BitFlags};
 use libflate::zlib;
@@ -87,17 +85,6 @@ impl Versioned for V103 {
         encoder.finish().into_result()?;
         Ok(size)
     }
-}
-
-pub fn open<P>(path: P) -> Result<BsaReader<BufReader<File>>>
-where P: AsRef<Path> {
-    let file = File::open(path)?;
-    let buf = BufReader::new(file);
-    read(buf)
-}
-pub fn read<R>(reader: R) -> Result<BsaReader<R>>
-where R: Read + Seek {
-    BsaReader::read(reader)
 }
 
 pub type Header = V10XHeader<ArchiveFlag>;
@@ -209,7 +196,7 @@ mod tests {
 
     fn check_write_read_identity_bsa(dirs: Vec<BsaDirSource<Vec<u8>>>) {
         let bytes = bsa_bytes::<V103, _>(dirs.clone());
-        let mut bsa = v103::BsaReader::read(bytes)
+        let mut bsa = v103::BsaReader::read_bsa(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let in_dirs = bsa.list()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));
