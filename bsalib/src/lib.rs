@@ -22,10 +22,10 @@ pub use crate::{
     hash::Hash,
     version::{Version, Version10X, BA2Type},
     read::open,
-    v001::V001,
-    v103::V103,
-    v104::V104,
-    v105::V105,
+    v001::{V001, BsaReaderV001, HeaderV001},
+    v103::{V103, BsaReaderV103, HeaderV103},
+    v104::{V104, BsaReaderV104, HeaderV104},
+    v105::{V105, BsaReaderV105, HeaderV105},
 };
 
 
@@ -48,14 +48,14 @@ impl<A001, A103, A104, A105> ForSomeBsaVersion<A001, A103, A104, A105> {
     }
 }
 
-pub type SomeBsaHeader = ForSomeBsaVersion<v001::Header, v103::Header, v104::Header, v105::Header>;
-pub type SomeBsaReader<R> = ForSomeBsaVersion<v001::BsaReader<R>, v103::BsaReader<R>, v104::BsaReader<R>, v105::BsaReader<R>>;
+pub type SomeBsaHeader = ForSomeBsaVersion<HeaderV001, HeaderV103, HeaderV104, HeaderV105>;
+pub type SomeBsaReader<R> = ForSomeBsaVersion<BsaReaderV001<R>, BsaReaderV103<R>, BsaReaderV104<R>, BsaReaderV105<R>>;
 
 pub enum SomeBsaRoot {
     Dirs(Vec<BsaDir>),
     Files(Vec<BsaFile>),
 }
-impl<R> BsaReader for ForSomeBsaVersion<v001::BsaReader<R>, v103::BsaReader<R>, v104::BsaReader<R>, v105::BsaReader<R>>
+impl<R> BsaReader for ForSomeBsaVersion<BsaReaderV001<R>, BsaReaderV103<R>, BsaReaderV104<R>, BsaReaderV105<R>>
 where R: Read + Seek {
     type Header = SomeBsaHeader;
     type Root = SomeBsaRoot;

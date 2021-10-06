@@ -9,6 +9,10 @@ use thiserror::Error;
 
 use crate::read::BsaReader;
 use crate::bin::{Fixed, Readable, ReadableFixed, VarSize, Writable, WritableFixed, concat_bytes};
+use crate::v001::BsaReaderV001;
+use crate::v103::BsaReaderV103;
+use crate::v104::BsaReaderV104;
+use crate::v105::BsaReaderV105;
 
 
 
@@ -89,9 +93,9 @@ derive_var_size_via_size_of!(Version10X);
 impl Version10X {
     pub fn read<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReader<R>> {
         match self {
-            Version10X::V103 => crate::v103::BsaReader::read_bsa(reader).map(crate::SomeBsaReader::V103),
-            Version10X::V104 => crate::v104::BsaReader::read_bsa(reader).map(crate::SomeBsaReader::V104),
-            Version10X::V105 => crate::v105::BsaReader::read_bsa(reader).map(crate::SomeBsaReader::V105),
+            Version10X::V103 => BsaReaderV103::read_bsa(reader).map(crate::SomeBsaReader::V103),
+            Version10X::V104 => BsaReaderV104::read_bsa(reader).map(crate::SomeBsaReader::V104),
+            Version10X::V105 => BsaReaderV105::read_bsa(reader).map(crate::SomeBsaReader::V105),
         }
     }
 }
@@ -154,7 +158,7 @@ impl Version {
     }
     pub fn read<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReader<R>> {
         match self {
-            Version::V001 => crate::v001::BsaReader::read_bsa(reader).map(crate::SomeBsaReader::V001),
+            Version::V001 => BsaReaderV001::read_bsa(reader).map(crate::SomeBsaReader::V001),
             Version::V10X(v) => v.read(reader),
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, UnsupportedVersion(*self))),
         }

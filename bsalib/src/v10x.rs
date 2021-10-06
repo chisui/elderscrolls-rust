@@ -72,7 +72,7 @@ impl WritableFixed for RawHeader {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct V10XHeader<AF: BitFlag> {
+pub struct HeaderV10X<AF: BitFlag> {
     pub offset: u32,
     pub archive_flags: BitFlags<AF>,
     pub dir_count: u32,
@@ -82,22 +82,22 @@ pub struct V10XHeader<AF: BitFlag> {
     pub file_flags: BitFlags<FileFlag>,
     pub padding: u16,
 }
-impl<AF: BitFlag> V10XHeader<AF> {
+impl<AF: BitFlag> HeaderV10X<AF> {
     fn effective_total_dir_name_len(&self) -> usize {
         self.total_dir_name_length as usize
             + self.dir_count as usize // total_dir_name_length does not include size byte
     }
 }
-impl<AF: ToArchiveBitFlags + std::cmp::PartialEq> Eq for V10XHeader<AF> {}
-impl<AF: ToArchiveBitFlags> Default for V10XHeader<AF> {
+impl<AF: ToArchiveBitFlags + std::cmp::PartialEq> Eq for HeaderV10X<AF> {}
+impl<AF: ToArchiveBitFlags> Default for HeaderV10X<AF> {
     fn default() -> Self {
         let mut h = Self::from(&RawHeader::zeroed());
         h.offset = size_of::<(MagicNumber, u32, RawHeader)>() as u32;
         h
     }
 }
-impl<AF: ToArchiveBitFlags> From<&RawHeader> for V10XHeader<AF> {
-    fn from(raw: &RawHeader) -> V10XHeader<AF> {
+impl<AF: ToArchiveBitFlags> From<&RawHeader> for HeaderV10X<AF> {
+    fn from(raw: &RawHeader) -> HeaderV10X<AF> {
         Self {
             offset: raw.offset,
             archive_flags: ToArchiveBitFlags::to_archive_bit_flags(raw.archive_flags),
@@ -110,8 +110,8 @@ impl<AF: ToArchiveBitFlags> From<&RawHeader> for V10XHeader<AF> {
         }   
     }
 }
-impl<AF: ToArchiveBitFlags> From<&V10XHeader<AF>> for RawHeader {
-    fn from(h: &V10XHeader<AF>) -> Self {
+impl<AF: ToArchiveBitFlags> From<&HeaderV10X<AF>> for RawHeader {
+    fn from(h: &HeaderV10X<AF>) -> Self {
         Self {
             offset: h.offset,
             archive_flags: ToArchiveBitFlags::from_archive_bit_flags(h.archive_flags),
@@ -132,32 +132,32 @@ pub trait Has<T> {
             .any(|flag| self.has(flag))
     }
 }
-impl<AF: ToArchiveBitFlags> Has<AF> for V10XHeader<AF> {
+impl<AF: ToArchiveBitFlags> Has<AF> for HeaderV10X<AF> {
     fn has(&self, f: AF) -> bool {
         self.archive_flags.contains(f)
     }
 }
-impl<AF: ToArchiveBitFlags> Has<FileFlag> for V10XHeader<AF> {
+impl<AF: ToArchiveBitFlags> Has<FileFlag> for HeaderV10X<AF> {
     fn has(&self, f: FileFlag) -> bool {
         self.file_flags.contains(f)
     }
 }
-impl<AF: ToArchiveBitFlags + fmt::Debug> bin::Fixed for V10XHeader<AF> {
+impl<AF: ToArchiveBitFlags + fmt::Debug> bin::Fixed for HeaderV10X<AF> {
     fn pos() -> usize { RawHeader::pos() }
 }
-impl<AF: ToArchiveBitFlags + fmt::Debug> bin::ReadableFixed for V10XHeader<AF> {
+impl<AF: ToArchiveBitFlags + fmt::Debug> bin::ReadableFixed for HeaderV10X<AF> {
     fn read_fixed<R: Read + Seek>(reader: R) -> Result<Self> {
         let raw = RawHeader::read_fixed(reader)?;
-        Ok(V10XHeader::<AF>::from(&raw))
+        Ok(HeaderV10X::<AF>::from(&raw))
     }
 }
-impl<AF: ToArchiveBitFlags> bin::WritableFixed for V10XHeader<AF> {
+impl<AF: ToArchiveBitFlags> bin::WritableFixed for HeaderV10X<AF> {
     fn write_fixed<W: Write + Seek>(&self, writer: W) -> Result<()> {
         RawHeader::from(self).write_fixed(writer)
     }
 }
 
-impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for V10XHeader<AF> {
+impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for HeaderV10X<AF> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "archive_flags:")?;
         for flag in self.archive_flags.iter() {
@@ -177,14 +177,14 @@ impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for V10XHeader<AF> {
 }
 
 
-pub struct V10XReader<R, T, AF: ToArchiveBitFlags, RDR> {
-    pub reader: R,
-    pub header: V10XHeader<AF>,
-    pub dirs: Option<Vec<BsaDir>>,
+pub struct BsaReaderV10X<R, T, AF: ToArchiveBitFlags, RDR> {
+    pub(crate) reader: R,
+    pub(crate) header: HeaderV10X<AF>,
+    pub(crate) dirs: Option<Vec<BsaDir>>,
     phantom_t: PhantomData<T>,
     phantom_rdr: PhantomData<RDR>,
 }
-impl<R, T, AF, RDR> V10XReader<R, T, AF, RDR>
+impl<R, T, AF, RDR> BsaReaderV10X<R, T, AF, RDR>
 where
     R: Read + Seek,
     T: Versioned,
@@ -258,7 +258,7 @@ pub trait Versioned {
 
     fn compress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64>;
 }
-impl<R, T, AF, RDR> BsaReader for V10XReader<R, T, AF, RDR>
+impl<R, T, AF, RDR> BsaReader for BsaReaderV10X<R, T, AF, RDR>
 where
     R: Read + Seek,
     T: Versioned,
@@ -266,12 +266,12 @@ where
     RDR: Readable + Sized + Copy + fmt::Debug,
     DirRecord: From<RDR>,
 {
-    type Header = V10XHeader<AF>;
+    type Header = HeaderV10X<AF>;
     type In = R;
 
     fn read_bsa(mut reader: R) -> Result<Self> {
-        let header = V10XHeader::<AF>::read_fixed(&mut reader)?;
-        Ok(V10XReader {
+        let header = HeaderV10X::<AF>::read_fixed(&mut reader)?;
+        Ok(Self {
             reader,
             header,
             dirs: None,
@@ -394,13 +394,13 @@ struct FileNames {
     values: Vec<ZString>,
 }
 
-pub struct V10XWriter<T, AF: BitFlag, RDR> {
+pub struct BsaWriterV10X<T, AF: BitFlag, RDR> {
     phantom_t: PhantomData<T>,
     phantom_af: PhantomData<AF>,
     phantom_rdr: PhantomData<RDR>,
 }
 
-impl<T, AF, RDR> V10XWriter<T, AF, RDR>
+impl<T, AF, RDR> BsaWriterV10X<T, AF, RDR>
 where
     T: Versioned,
     AF: ToArchiveBitFlags,
@@ -411,10 +411,10 @@ where
         version.write_fixed(&mut out)
     }
 
-    fn write_header<W, D>(opts: V10XWriterOptions<AF>, dirs: &Vec<BsaDirSource<D>>, mut out: W) -> Result<FileNames> 
+    fn write_header<W, D>(opts: BsaWriterOptionsV10X<AF>, dirs: &Vec<BsaDirSource<D>>, mut out: W) -> Result<FileNames> 
     where W: Write + Seek,
     {
-        let mut header: V10XHeader<AF> = opts.into();
+        let mut header: HeaderV10X<AF> = opts.into();
 
         let mut file_names: Vec<ZString> = Vec::new();
         
@@ -466,7 +466,7 @@ where
             .collect()
     }
 
-    fn write_dir_content_record<W, D>(opts: V10XWriterOptions<AF>, dir: &BsaDirSource<D>, out: W) -> Result<Positioned<DirContentRecord>>
+    fn write_dir_content_record<W, D>(opts: BsaWriterOptionsV10X<AF>, dir: &BsaDirSource<D>, out: W) -> Result<Positioned<DirContentRecord>>
     where W: Write + Seek {
         let name = if opts.has(AF::includes_dir_names()) {
             let s = BZString::new(dir.name.to_lowercase())?;
@@ -489,7 +489,7 @@ where
     }
 
     fn write_dir_content_records<W, D>(
-        opts: V10XWriterOptions<AF>,
+        opts: BsaWriterOptionsV10X<AF>,
         dirs: &Vec<BsaDirSource<D>>,
         dir_records: &mut Vec<Positioned<RDR>>,
         total_file_name_length: u32,
@@ -519,7 +519,7 @@ where
             .write(out)
     }
 
-    fn write_file_content<W, D>(opts: V10XWriterOptions<AF>, dir: &BsaDirSource<D>, file: &BsaFileSource<D>, mut out: W) -> Result<u64>
+    fn write_file_content<W, D>(opts: BsaWriterOptionsV10X<AF>, dir: &BsaDirSource<D>, file: &BsaFileSource<D>, mut out: W) -> Result<u64>
     where
         W: Write + Seek,
         D: DataSource,
@@ -541,7 +541,7 @@ where
     }
 
     fn write_file_contents<W, D: DataSource>(
-        opts: V10XWriterOptions<AF>,
+        opts: BsaWriterOptionsV10X<AF>,
         dirs: &Vec<BsaDirSource<D>>,
         dir_content_records: &mut Vec<Positioned<DirContentRecord>>,
         mut out: W,
@@ -561,11 +561,11 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct V10XWriterOptions<AF: BitFlag> {
+pub struct BsaWriterOptionsV10X<AF: BitFlag> {
     pub archive_flags: BitFlags<AF>,
     pub file_flags: BitFlags<FileFlag>,
 }
-impl<AF: ToArchiveBitFlags> Default for V10XWriterOptions<AF> {
+impl<AF: ToArchiveBitFlags> Default for BsaWriterOptionsV10X<AF> {
     fn default() -> Self {
         let mut archive_flags = BitFlags::empty();
         archive_flags |= AF::includes_file_names();
@@ -576,32 +576,32 @@ impl<AF: ToArchiveBitFlags> Default for V10XWriterOptions<AF> {
         }
     }
 }
-impl<AF: ToArchiveBitFlags> From<V10XWriterOptions<AF>> for V10XHeader<AF> {
-    fn from(opts: V10XWriterOptions<AF>) -> Self { 
+impl<AF: ToArchiveBitFlags> From<BsaWriterOptionsV10X<AF>> for HeaderV10X<AF> {
+    fn from(opts: BsaWriterOptionsV10X<AF>) -> Self { 
         let mut header = Self::default();
         header.archive_flags = opts.archive_flags;
         header.file_flags = opts.file_flags;
         header
     }
 }
-impl<AF: ToArchiveBitFlags> Has<AF> for V10XWriterOptions<AF> {
+impl<AF: ToArchiveBitFlags> Has<AF> for BsaWriterOptionsV10X<AF> {
     fn has(&self, f: AF) -> bool {
         self.archive_flags.contains(f)
     }
 }
-impl<AF: ToArchiveBitFlags> Has<FileFlag> for V10XWriterOptions<AF> {
+impl<AF: ToArchiveBitFlags> Has<FileFlag> for BsaWriterOptionsV10X<AF> {
     fn has(&self, f: FileFlag) -> bool {
         self.file_flags.contains(f)
     }
 }
 
-impl<T, AF, RDR> BsaWriter for V10XWriter<T, AF, RDR>
+impl<T, AF, RDR> BsaWriter for BsaWriterV10X<T, AF, RDR>
 where
     T: Versioned,
     AF: ToArchiveBitFlags,
     RDR: From<DirRecord> + Into<DirRecord> + Writable + Sized + Copy + fmt::Debug
 {
-    type Options = V10XWriterOptions<AF>;
+    type Options = BsaWriterOptionsV10X<AF>;
     fn write_bsa<DS, D, W>(opts: Self::Options, raw_dirs: DS, mut out: W) -> Result<()>
     where
         DS: IntoIterator<Item = BsaDirSource<D>>,
@@ -622,12 +622,12 @@ where
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
-    use crate::v105;
+    use crate::v105::{self, HeaderV105};
     use super::*;
 
     #[test]
     fn write_read_identity_header() -> Result<()> {
-        let header_out = v105::Header {
+        let header_out = HeaderV105 {
             offset: 12,
             archive_flags: BitFlags::empty()
                 | v105::ArchiveFlag::CompressedArchive
@@ -646,7 +646,7 @@ mod tests {
         let mut out = Cursor::new(Vec::<u8>::new());
         header_out.write_fixed(&mut out)?;
         let mut input = Cursor::new(out.into_inner());
-        let header_in = v105::Header::read_fixed(&mut input)?;
+        let header_in = HeaderV105::read_fixed(&mut input)?;
         
         assert_eq!(header_out, header_in);
         

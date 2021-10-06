@@ -4,10 +4,11 @@ use bytemuck::{Zeroable, Pod};
 use crate::{
     version::Version10X,
     hash::Hash,
-    v10x::{self, V10XReader, V10XWriter, V10XWriterOptions, Versioned},
+    v10x::{self, BsaReaderV10X, BsaWriterV10X, BsaWriterOptionsV10X, Versioned},
     write,
 };
-pub use crate::v104::{ArchiveFlag, Header};
+use crate::v104::HeaderV104;
+pub use crate::v104::{ArchiveFlag, };
 
 
 #[repr(C)]
@@ -45,20 +46,21 @@ impl From<v10x::DirRecord> for RawDirRecord {
 
 
 
-pub type BsaReader<R> = V10XReader<R, V105, ArchiveFlag, RawDirRecord>;
-pub type BsaWriter = V10XWriter<V105, ArchiveFlag, RawDirRecord>;
-pub type BsaWriterOptions = V10XWriterOptions<ArchiveFlag>;
+pub type HeaderV105 = HeaderV104;
+pub type BsaReaderV105<R> = BsaReaderV10X<R, V105, ArchiveFlag, RawDirRecord>;
+pub type BsaWriterV105 = BsaWriterV10X<V105, ArchiveFlag, RawDirRecord>;
+pub type BsaWriterOptionsV105 = BsaWriterOptionsV10X<ArchiveFlag>;
 
 pub enum V105 {}
 impl write::BsaWriter for V105 {
-    type Options = <BsaWriter as write::BsaWriter>::Options;
+    type Options = <BsaWriterV105 as write::BsaWriter>::Options;
 
     fn write_bsa<DS, D, W>(opts: Self::Options, dirs: DS, out: W) -> Result<()>
     where
         D: crate::bin::DataSource,
         DS: IntoIterator<Item = write::BsaDirSource<D>>,
         W: Write + Seek {
-        BsaWriter::write_bsa(opts, dirs, out)
+        BsaWriterV105::write_bsa(opts, dirs, out)
     }
 }
 
@@ -98,7 +100,7 @@ mod tests {
     fn writes_header() {
         let mut bytes = some_bsa_bytes::<V105>();
 
-        let header = v105::Header::read_fixed(&mut bytes)
+        let header = HeaderV105::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
 
         assert_eq!(header.offset, 36, "offset");
@@ -116,7 +118,7 @@ mod tests {
     fn writes_dir_records() {
         let mut bytes = some_bsa_bytes::<V105>();
 
-        v105::Header::read_fixed(&mut bytes)
+        HeaderV105::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
             
         let dirs = RawDirRecord::read_bin_many(&mut bytes, 1)
@@ -132,7 +134,7 @@ mod tests {
         let mut bytes = some_bsa_bytes::<V105>();
 
 
-        let header = v105::Header::read_fixed(&mut bytes)
+        let header = HeaderV105::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read Header {}", err));
             
         let dir_rec = v105::RawDirRecord::read_bin(&mut bytes)
@@ -181,7 +183,7 @@ mod tests {
 
     fn check_write_read_identity_bsa(dirs: Vec<BsaDirSource<Vec<u8>>>) {
         let bytes = bsa_bytes::<V105, _>(dirs.clone());
-        let mut bsa = v105::BsaReader::read_bsa(bytes)
+        let mut bsa = BsaReaderV105::read_bsa(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let in_dirs = bsa.list()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));

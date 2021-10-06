@@ -33,29 +33,29 @@ pub enum V001WriteError {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
-pub struct Header {
+pub struct HeaderV001 {
     pub offset_hash_table: u32,
     pub file_count: u32,
 }
-impl fmt::Display for Header {
+impl fmt::Display for HeaderV001 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "file_count: {}", self.file_count)
     }
 }
-impl Fixed for Header {
+impl Fixed for HeaderV001 {
     fn pos() -> usize { size_of::<MagicNumber>() }
 }
-impl ReadableFixed for Header {
+impl ReadableFixed for HeaderV001 {
     fn read_fixed<R: Read + Seek>(reader: R) -> io::Result<Self> {
         read_fixed_default(reader)
     }
 }
-impl WritableFixed for Header {
+impl WritableFixed for HeaderV001 {
     fn write_fixed<W: Write + Seek>(&self, writer: W) -> io::Result<()> {
         write_fixed_default(self, writer)
     }
 }
-derive_writable_via_pod!(Header);
+derive_writable_via_pod!(HeaderV001);
 
 
 #[repr(C)]
@@ -69,22 +69,22 @@ derive_writable_via_pod!(FileRecord);
 
 
 const fn offset_after_header() -> u64 {
-    size_of::<(MagicNumber, Header)>() as u64
+    size_of::<(MagicNumber, HeaderV001)>() as u64
 }
 const fn offset_names_start(file_count: u64) -> u64 {
     offset_after_header() + (file_count * size_of::<(FileRecord, u32)>() as u64)
 }
-const fn offset_after_index(header: &Header) -> u64 {
+const fn offset_after_index(header: &HeaderV001) -> u64 {
     offset_after_header() + header.offset_hash_table as u64 + (size_of::<Hash>() * header.file_count as usize) as u64
 }
 
 pub enum V001 {}
-pub struct BsaReader<R> {
-    pub reader: R,
-    pub header: Header,
-    pub files: Option<Vec<BsaFile>>,
+pub struct BsaReaderV001<R> {
+    reader: R,
+    header: HeaderV001,
+    files: Option<Vec<BsaFile>>,
 }
-impl<R: Read + Seek> BsaReader<R> {
+impl<R: Read + Seek> BsaReaderV001<R> {
     fn files(&mut self) -> io::Result<Vec<BsaFile>> {
         let file_count = self.header.file_count as usize;
         self.reader.seek(SeekFrom::Start(offset_after_header()))?;
@@ -115,22 +115,22 @@ impl<R: Read + Seek> BsaReader<R> {
             .collect()
     }
 }
-impl<R> read::BsaReader for BsaReader<R>
+impl<R> read::BsaReader for BsaReaderV001<R>
 where R: Read + Seek {
-    type Header = Header;
+    type Header = HeaderV001;
     type Root = Vec<BsaFile>;
     type In = R;
     
     fn read_bsa(mut reader: R) -> io::Result<Self> {
-        let header = Header::read_fixed(&mut reader)?;
-        Ok(BsaReader {
+        let header = HeaderV001::read_fixed(&mut reader)?;
+        Ok(Self {
             reader,
             header,
             files: None,
         })
     }
 
-    fn header(&self) -> Header { self.header }
+    fn header(&self) -> HeaderV001 { self.header }
     fn list(&mut self) -> io::Result<Vec<BsaFile>> {
         if let Some(files) = &self.files {
             Ok(files.to_vec())
@@ -185,7 +185,7 @@ impl write::BsaWriter for V001 {
         }
 
         Version::V001.write_fixed(&mut out)?;
-        let header = Header {
+        let header = HeaderV001 {
             offset_hash_table,
             file_count: files.len() as u32,
         };
@@ -235,7 +235,6 @@ mod tests {
         read::BsaReader,
         write::test as w_test,
         Version,
-        v001,
     };
     use super::*;
 
@@ -252,7 +251,7 @@ mod tests {
     fn writes_header() {
         let mut bytes = w_test::bsa_bytes::<V001, _>(w_test::some_bsa_dirs());
 
-        let header = Header::read_fixed(&mut bytes)
+        let header = HeaderV001::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
 
         assert_eq!(header.offset_hash_table, 16, "offset_hash_table");
@@ -263,7 +262,7 @@ mod tests {
     fn write_read_identity_bsa() {
         let dirs = w_test::some_bsa_dirs();
         let bytes = w_test::bsa_bytes::<V001, _>(dirs.clone());
-        let mut bsa = v001::BsaReader::read_bsa(bytes)
+        let mut bsa = BsaReaderV001::read_bsa(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let files = bsa.list()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));
