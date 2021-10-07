@@ -1,11 +1,8 @@
-use std::io::{Read, Write, Result, copy};
 use bytemuck::{Zeroable, Pod};
 
-use crate::{
-    version::Version10X,
-    hash::Hash,
-    v10x::{self, BsaReaderV10X, BsaWriterV10X, Versioned},
-};
+use crate::{v10x::{self, BsaReaderV10X, BsaWriterV10X, Versioned}, version::Version10X};
+use crate::hash::Hash;
+use crate::compress::Lz4;
 use crate::v104::{HeaderV104, ArchiveFlagV104};
 
 
@@ -44,24 +41,12 @@ impl From<v10x::DirRecord> for RawDirRecord {
 
 pub type ArchiveFlagV105 = ArchiveFlagV104;
 pub type HeaderV105 = HeaderV104;
-pub type BsaReaderV105<R> = BsaReaderV10X<R, V105, ArchiveFlagV105, RawDirRecord>;
-pub type BsaWriterV105 = BsaWriterV10X<V105, ArchiveFlagV105, RawDirRecord>;
+pub type BsaReaderV105<R> = BsaReaderV10X<R, V105, Lz4, ArchiveFlagV105, RawDirRecord>;
+pub type BsaWriterV105 = BsaWriterV10X<V105, Lz4, ArchiveFlagV105, RawDirRecord>;
 
 pub enum V105 {}
 impl Versioned for V105 {
     fn version() -> Version10X { Version10X::V105 }
- 
-    fn uncompress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
-        let mut decoder = lz4::Decoder::new(&mut reader)?;
-        copy(&mut decoder, &mut writer)
-    }
-
-    fn compress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
-        let mut encoder = lz4::EncoderBuilder::new()
-            .auto_flush(true)
-            .build(&mut writer)?;
-        copy(&mut reader, &mut encoder)
-    }
 }
 
 #[cfg(test)]
@@ -69,7 +54,7 @@ mod tests {
     use std::io::{Cursor, Seek, SeekFrom};
     use enumflags2::BitFlags;
     use super::*;
-    use crate::{Hash, bin::{Readable, ReadableFixed, ReadableParam}, read::{BsaReader}, str::BZString, v105, version::{Version, Version10X}, write::{BsaDirSource, test::*}};
+    use crate::{Hash, bin::{Readable, ReadableFixed, ReadableParam}, compress::Compression, read::{BsaReader}, str::BZString, v105, version::{Version, Version10X}, write::{BsaDirSource, test::*}};
 
     #[test]
     fn writes_version() {
@@ -154,12 +139,12 @@ mod tests {
         let mut out = Cursor::new(Vec::<u8>::new());
         let expected: Vec<u8> = vec![1,2,3,4];
       
-        v105::V105::compress(Cursor::new(expected.clone()), &mut out)
+        Lz4::compress(Cursor::new(expected.clone()), &mut out)
             .unwrap_or_else(|err| panic!("could not compress data {}", err));
             
         let mut input = Cursor::new(out.into_inner());
         let mut actual = Vec::new();
-        v105::V105::uncompress(&mut input,&mut actual)
+        Lz4::uncompress(&mut input,&mut actual)
             .unwrap_or_else(|err| panic!("could not uncompress data {}", err));
 
         assert_eq!(expected, actual, "compressed data");

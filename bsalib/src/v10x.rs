@@ -8,6 +8,7 @@ use bytemuck::{Pod, Zeroable};
 use enumflags2::{bitflags, BitFlags, BitFlag};
 
 use crate::bin::{self, DataSource, Fixed, Positioned, Readable, ReadableFixed, ReadableParam, VarSize, Writable, WritableFixed, derive_readable_via_pod, derive_writable_via_pod, read_struct};
+use crate::compress::Compression;
 use crate::str::{BZString, BString, ZString};
 use crate::Hash;
 use crate::version::{Version, Version10X, MagicNumber};
@@ -169,17 +170,19 @@ impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for HeaderV10X<AF> {
 }
 
 
-pub struct BsaReaderV10X<R, T, AF: ToArchiveBitFlags, RDR> {
+pub struct BsaReaderV10X<R, T, C, AF: ToArchiveBitFlags, RDR> {
     pub(crate) reader: R,
     pub(crate) header: HeaderV10X<AF>,
     pub(crate) dirs: Option<Vec<BsaDir>>,
     phantom_t: PhantomData<T>,
+    phantom_c: PhantomData<C>,
     phantom_rdr: PhantomData<RDR>,
 }
-impl<R, T, AF, RDR> BsaReaderV10X<R, T, AF, RDR>
+impl<R, T, C, AF, RDR> BsaReaderV10X<R, T, C, AF, RDR>
 where
     R: Read + Seek,
     T: Versioned,
+    C: Compression,
     AF: ToArchiveBitFlags,
 {
     fn offset_file_names(&self) -> usize {
@@ -245,15 +248,12 @@ where
 }
 pub trait Versioned {
     fn version() -> Version10X;
-
-    fn uncompress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64>;
-
-    fn compress<R: Read, W: Write>(reader: R, writer: W) -> Result<u64>;
 }
-impl<R, T, AF, RDR> BsaReader for BsaReaderV10X<R, T, AF, RDR>
+impl<R, T, C, AF, RDR> BsaReader for BsaReaderV10X<R, T, C, AF, RDR>
 where
     R: Read + Seek,
     T: Versioned,
+    C: Compression,
     AF: ToArchiveBitFlags + fmt::Debug,
     RDR: Readable + Sized + Copy + fmt::Debug,
     DirRecord: From<RDR>,
@@ -268,6 +268,7 @@ where
             header,
             dirs: None,
             phantom_t: PhantomData,
+            phantom_c: PhantomData,
             phantom_rdr: PhantomData,
         })
     }
@@ -307,7 +308,7 @@ where
             self.reader.seek(SeekFrom::Current(size_of::<u32>() as i64))?;
 
             let sub_reader = (&mut self.reader).take(file.size as u64);
-            T::uncompress(sub_reader, writer)?;
+            C::uncompress(sub_reader, writer)?;
         } else {
             let mut sub_reader = (&mut self.reader).take(file.size as u64);
             copy(&mut sub_reader, &mut writer)?;
@@ -386,17 +387,19 @@ struct FileNames {
     values: Vec<ZString>,
 }
 
-pub struct BsaWriterV10X<T, AF: BitFlag, RDR> {
+pub struct BsaWriterV10X<T, C, AF: BitFlag, RDR> {
     phantom_t: PhantomData<T>,
+    phantom_c: PhantomData<C>,
     phantom_af: PhantomData<AF>,
     phantom_rdr: PhantomData<RDR>,
     pub archive_flags: BitFlags<AF>,
     pub file_flags: BitFlags<FileFlag>,
 }
 
-impl<T, AF, RDR> BsaWriterV10X<T, AF, RDR>
+impl<T, C, AF, RDR> BsaWriterV10X<T, C, AF, RDR>
 where
     T: Versioned,
+    C: Compression,
     AF: ToArchiveBitFlags,
     RDR: From<DirRecord> + Into<DirRecord> + Writable + Sized + Copy
 {
@@ -521,7 +524,7 @@ where
         let mut data_source = file.data.open()?;
         if file.compressed.unwrap_or(is_compressed_by_default) {
             let mut size_orig: Positioned<u32> = Positioned::new_empty(&mut out)?;
-            size_orig.data = T::compress(data_source, &mut out)? as u32;
+            size_orig.data = C::compress(data_source, &mut out)? as u32;
             size_orig.update(&mut out)?;
             
             Ok(out.stream_position()? - size_orig.position)
@@ -549,7 +552,7 @@ where
     }
    
 }
-impl<T, AF: ToArchiveBitFlags, RDR> Default for BsaWriterV10X<T, AF, RDR> {
+impl<T, C, AF: ToArchiveBitFlags, RDR> Default for BsaWriterV10X<T, C, AF, RDR> {
     fn default() -> Self {
         let mut archive_flags = BitFlags::empty();
         archive_flags |= AF::includes_file_names();
@@ -558,33 +561,35 @@ impl<T, AF: ToArchiveBitFlags, RDR> Default for BsaWriterV10X<T, AF, RDR> {
             phantom_af: PhantomData,
             phantom_rdr: PhantomData,
             phantom_t: PhantomData,
+            phantom_c: PhantomData,
             archive_flags,
             file_flags: BitFlags::empty(),
         }
     }
 }
-impl<T, AF: ToArchiveBitFlags, RDR> From<&BsaWriterV10X<T, AF, RDR>> for HeaderV10X<AF> {
-    fn from(opts: &BsaWriterV10X<T, AF, RDR>) -> Self { 
+impl<T, C, AF: ToArchiveBitFlags, RDR> From<&BsaWriterV10X<T, C, AF, RDR>> for HeaderV10X<AF> {
+    fn from(opts: &BsaWriterV10X<T, C, AF, RDR>) -> Self { 
         let mut header = Self::default();
         header.archive_flags = opts.archive_flags;
         header.file_flags = opts.file_flags;
         header
     }
 }
-impl<T, AF: ToArchiveBitFlags, RDR> Has<AF> for BsaWriterV10X<T, AF, RDR> {
+impl<T, C, AF: ToArchiveBitFlags, RDR> Has<AF> for BsaWriterV10X<T, C, AF, RDR> {
     fn has(&self, f: AF) -> bool {
         self.archive_flags.contains(f)
     }
 }
-impl<T, AF: ToArchiveBitFlags, RDR> Has<FileFlag> for BsaWriterV10X<T, AF, RDR> {
+impl<T, C, AF: ToArchiveBitFlags, RDR> Has<FileFlag> for BsaWriterV10X<T, C, AF, RDR> {
     fn has(&self, f: FileFlag) -> bool {
         self.file_flags.contains(f)
     }
 }
 
-impl<T, AF, RDR> BsaWriter for BsaWriterV10X<T, AF, RDR>
+impl<T, C, AF, RDR> BsaWriter for BsaWriterV10X<T, C, AF, RDR>
 where
     T: Versioned,
+    C: Compression,
     AF: ToArchiveBitFlags,
     RDR: From<DirRecord> + Into<DirRecord> + Writable + Sized + Copy + fmt::Debug
 {

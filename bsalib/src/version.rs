@@ -85,11 +85,11 @@ pub enum Version10X {
 }
 derive_var_size_via_size_of!(Version10X);
 impl Version10X {
-    pub fn read<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReader<R>> {
+    pub fn read_bsa<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReaderV10X<R>> {
         match self {
-            Version10X::V103 => BsaReaderV103::read_bsa(reader).map(crate::SomeBsaReader::V103),
-            Version10X::V104 => BsaReaderV104::read_bsa(reader).map(crate::SomeBsaReader::V104),
-            Version10X::V105 => BsaReaderV105::read_bsa(reader).map(crate::SomeBsaReader::V105),
+            Version10X::V103 => BsaReaderV103::read_bsa(reader).map(crate::SomeBsaReaderV10X::V103),
+            Version10X::V104 => BsaReaderV104::read_bsa(reader).map(crate::SomeBsaReaderV10X::V104),
+            Version10X::V105 => BsaReaderV105::read_bsa(reader).map(crate::SomeBsaReaderV10X::V105),
         }
     }
 }
@@ -153,7 +153,7 @@ impl Version {
     pub fn read_bsa<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReader<R>> {
         match self {
             Version::V001 => BsaReaderV001::read_bsa(reader).map(crate::SomeBsaReader::V001),
-            Version::V10X(v) => v.read(reader),
+            Version::V10X(v) => v.read_bsa(reader).map(crate::SomeBsaReader::V10X),
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, UnsupportedVersion(*self))),
         }
     }

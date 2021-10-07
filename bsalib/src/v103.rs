@@ -1,21 +1,16 @@
-use std::{
-    io::{Read, Write, Result, copy},
-    str,
-};
+use std::str;
 use enumflags2::{bitflags, BitFlags};
-use libflate::zlib;
 
-use crate::{
-    version::Version10X,
-    v10x::{
-        BsaReaderV10X,
-        HeaderV10X,
-        BsaWriterV10X,
-        ToArchiveBitFlags,
-        Versioned,
-        DirRecord
-    },
+use crate::compress::ZLib;
+use crate::v10x::{
+    BsaReaderV10X,
+    HeaderV10X,
+    BsaWriterV10X,
+    ToArchiveBitFlags,
+    Versioned,
+    DirRecord
 };
+use crate::version::Version10X;
 
 
 #[bitflags]
@@ -56,33 +51,20 @@ impl ToArchiveBitFlags for ArchiveFlagV103 {
 }
 
 pub enum V103 {}
-
 impl Versioned for V103 {
     fn version() -> Version10X { Version10X::V103 }
-   
-    fn uncompress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
-        let mut decoder = zlib::Decoder::new(&mut reader)?;
-        copy(&mut decoder, &mut writer)
-    }
-
-    fn compress<R: Read, W: Write>(mut reader: R, mut writer: W) -> Result<u64> {
-        let mut encoder = zlib::Encoder::new(&mut writer)?;
-        let size = copy(&mut reader, &mut encoder)?;
-        encoder.finish().into_result()?;
-        Ok(size)
-    }
 }
 
 pub type HeaderV103 = HeaderV10X<ArchiveFlagV103>;
-pub type BsaReaderV103<R> = BsaReaderV10X<R, V103, ArchiveFlagV103, DirRecord>;
-pub type BsaWriterV103 = BsaWriterV10X<V103, ArchiveFlagV103, DirRecord>;
+pub type BsaReaderV103<R> = BsaReaderV10X<R, V103, ZLib, ArchiveFlagV103, DirRecord>;
+pub type BsaWriterV103 = BsaWriterV10X<V103, ZLib, ArchiveFlagV103, DirRecord>;
 
 #[cfg(test)]
 mod tests {
     use std::io::{Cursor, Seek, SeekFrom};
     use enumflags2::BitFlags;
     use super::*;
-    use crate::{Hash, bin::{Readable, ReadableParam, ReadableFixed}, read::BsaReader, str::BZString, v103, v10x, version::{Version, Version10X}, write::{BsaDirSource, test::*}};
+    use crate::{Hash, bin::{Readable, ReadableParam, ReadableFixed}, compress::Compression, read::BsaReader, str::BZString, v103, v10x, version::{Version, Version10X}, write::{BsaDirSource, test::*}};
 
     #[test]
     fn writes_version() {
@@ -166,12 +148,12 @@ mod tests {
         let mut out = Cursor::new(Vec::<u8>::new());
         let expected: Vec<u8> = vec![1,2,3,4];
       
-        v103::V103::compress(Cursor::new(expected.clone()), &mut out)
+        ZLib::compress(Cursor::new(expected.clone()), &mut out)
             .unwrap_or_else(|err| panic!("could not compress data {}", err));
             
         let mut input = Cursor::new(out.into_inner());
         let mut actual = Vec::new();
-        v103::V103::uncompress(&mut input,&mut actual)
+        ZLib::uncompress(&mut input,&mut actual)
             .unwrap_or_else(|err| panic!("could not uncompress data {}", err));
 
         assert_eq!(expected, actual, "compressed data");
