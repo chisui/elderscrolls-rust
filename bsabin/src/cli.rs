@@ -200,7 +200,7 @@ pub struct V10XCreateArgs {
 #[derive(Debug, Clap)]
 pub struct OpenOpts {
     /// Ignore file version information and treat it as this version instead.
-    #[clap(arg_enum)]
+    #[clap(arg_enum, long)]
     pub force_version: Option<VersionSlug>,
 }
 
