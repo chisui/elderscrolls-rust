@@ -45,7 +45,7 @@ impl Cmd for List {
     fn exec(&self) -> Result<()> {
         let mut bsa = open(&self.file, &self.overrides)?;
         match bsa.list()? {
-            SomeBsaRoot::Dirs(dirs) => {
+            SomeBsaRoot::V10X(dirs) => {
                 for dir in &dirs {
                     for file in dir {
                         if self.attributes {
@@ -57,7 +57,7 @@ impl Cmd for List {
                     }
                 }
             },
-            SomeBsaRoot::Files(files) => {
+            SomeBsaRoot::V001(files) => {
                 for file in &files {
                     if self.attributes {
                         println!("  {0: >8} {1}", file.size / 1000, file.id());
@@ -115,7 +115,7 @@ impl Cmd for Extract {
         let mut bsa = open(&self.file, &self.overrides)?;
 
         match bsa.list()? {
-            SomeBsaRoot::Dirs(dirs) => {
+            SomeBsaRoot::V10X(dirs) => {
                 for dir in dirs {
                     for file in &dir {
                         let file_path = format!("{}/{}", dir.id(), file.id());
@@ -127,7 +127,7 @@ impl Cmd for Extract {
                     }
                 }
             },
-            SomeBsaRoot::Files(files) => {
+            SomeBsaRoot::V001(files) => {
                 for file in files {
                     let file_path = format!("{}", file.id());
                     if matcher.matches(&file_path) {
