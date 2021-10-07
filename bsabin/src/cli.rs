@@ -15,6 +15,12 @@ pub enum Cmds {
     Extract(Extract),
     #[clap(aliases = &["c"])]
     Create(Create),
+    #[clap(aliases = &["a"])]
+    Add(Add),
+    #[clap(aliases = &["m"])]
+    Merge(Merge),
+    #[clap(aliases = &["d", "r", "remove"])]
+    Del(Del),
 }
 
 /// Print information about an archive file.
@@ -22,7 +28,7 @@ pub enum Cmds {
 #[clap()]
 pub struct Info {
     #[clap(flatten)]
-    pub overrides: Overrides,
+    pub open_opts: OpenOpts,
 
     /// Print all header informations.
     #[clap(short, long)]
@@ -38,7 +44,7 @@ pub struct Info {
 #[clap()]
 pub struct List {
     #[clap(flatten)]
-    pub overrides: Overrides,
+    pub open_opts: OpenOpts,
 
     /// print file attributes. This includes the size and whether or not the file is compressed.
     #[clap(short, long)]
@@ -54,7 +60,7 @@ pub struct List {
 #[clap()]
 pub struct Extract {
     #[clap(flatten)]
-    pub overrides: Overrides,
+    pub open_opts: OpenOpts,
 
     /// Glob patterns that all file names that should be extracted have to match.
     #[clap(short, long, parse(try_from_str))]
@@ -90,7 +96,44 @@ pub struct Create {
     pub file: PathBuf,
 }
 
+#[derive(Debug, Clap)]
+#[clap()]
+pub struct Add {
+    /// add the file(s) compressed.
+    #[clap(short, long)]
+    pub compress: bool,
 
+    /// The archive file to add to.
+    #[clap(parse(from_os_str))]
+    pub output: PathBuf,
+    
+    /// Files to add.
+    #[clap(parse(from_os_str))]
+    pub file: Vec<PathBuf>,
+}
+
+/// merge multiple archives. settings and flags are taken from the first file.
+#[derive(Debug, Clap)]
+#[clap()]
+pub struct Merge {
+    /// Archives to merge
+    #[clap(parse(from_os_str))]
+    pub file: Vec<PathBuf>,
+}
+
+
+/// Remove files from an archive.
+#[derive(Debug, Clap)]
+#[clap()]
+pub struct Del {
+    /// Archive to delet from.
+    #[clap(parse(from_os_str))]
+    pub file: PathBuf,
+
+    /// glob patterns of files to remove.
+    #[clap(parse(try_from_str))]
+    pub files: Vec<Pattern>,
+}
 
 #[derive(Debug, PartialEq, Clone, Clap)]
 pub enum CreateArgs {
@@ -119,19 +162,45 @@ impl From<&CreateArgs> for Version {
 
 #[derive(Debug, PartialEq, Eq, Clone, Clap)]
 pub struct V10XCreateArgs {
+    /// don't include direcotry names.
+    /// Games may not load achrives with this option.
+    #[clap(long)]
+    pub no_dir_names: bool,
+
+    /// don't include file names.
+    /// Games may not load achrives with this option.
+    #[clap(long)]
+    pub no_file_names: bool,
+
     /// Compress files.
     #[clap(short, long)]
     pub compress: bool,
-    
+
+    /// set the retain directories names flag.
+    /// This has no effect on the file structure.
+    /// May have unknown effect in games.
+    #[clap(long)]
+    pub retain_dir_names: bool,
+
+    /// set the retain file names flag.
+    /// This has no effect on the file structure.
+    /// May have unknown effect in games.
+    #[clap(long)]
+    pub retain_file_names: bool,
+
+    /// create an Xbox360 compatible archive.
+    #[clap(long)]
+    pub xbox: bool,
+
     /// Embed the filenames with the data.
-    #[clap(long="embed-file-names")]
+    #[clap(long)]
     pub embed_file_names: bool,
 }
 
 #[derive(Debug, Clap)]
-pub struct Overrides {
+pub struct OpenOpts {
     /// Ignore file version information and treat it as this version instead.
-    #[clap(arg_enum, long="force-version")]
+    #[clap(arg_enum)]
     pub force_version: Option<VersionSlug>,
 }
 

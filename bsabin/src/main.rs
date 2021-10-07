@@ -8,7 +8,7 @@ use thiserror::Error;
 use bsalib::{self, ArchiveFlagV105, BsaEntry, BsaReader, BsaWriter, BsaWriterV001, BsaWriterV105, EntryId, SomeBsaReader, SomeBsaRoot, Version, list_dir};
 
 mod cli;
-use crate::cli::{Cmds, Info, List, Extract, Create, Overrides, CreateArgs};
+use crate::cli::{Cmds, Info, List, Extract, Create, OpenOpts, CreateArgs};
 
 
 fn main() -> Result<()> {
@@ -21,17 +21,18 @@ trait Cmd {
 impl Cmd for Cmds {
     fn exec(&self) -> Result<()> {
         match self {
-            Cmds::Info(cmd)    => cmd.exec(),
-            Cmds::List(cmd)    => cmd.exec(),
+            Cmds::Info(cmd) => cmd.exec(),
+            Cmds::List(cmd) => cmd.exec(),
             Cmds::Extract(cmd) => cmd.exec(),
-            Cmds::Create(cmd)  => cmd.exec(),   
+            Cmds::Create(cmd) => cmd.exec(),   
+            cmd => Ok(print!("unsupported command: {:?}", cmd)),
         }
     }
 }
 
 impl Cmd for Info {
     fn exec(&self) -> Result<()> {
-        let bsa = open(&self.file, &self.overrides)?;
+        let bsa = open(&self.file, &self.open_opts)?;
         if self.verbose {
             println!("{:?}", bsa.header());
         } else {
@@ -43,7 +44,7 @@ impl Cmd for Info {
 
 impl Cmd for List {
     fn exec(&self) -> Result<()> {
-        let mut bsa = open(&self.file, &self.overrides)?;
+        let mut bsa = open(&self.file, &self.open_opts)?;
         match bsa.list()? {
             SomeBsaRoot::V10X(dirs) => {
                 for dir in &dirs {
@@ -112,7 +113,7 @@ impl Cmd for Extract {
     fn exec(&self) -> Result<()> {
         let matcher = FileMatcher::new(&self.include, &self.exclude)?;
         
-        let mut bsa = open(&self.file, &self.overrides)?;
+        let mut bsa = open(&self.file, &self.open_opts)?;
 
         match bsa.list()? {
             SomeBsaRoot::V10X(dirs) => {
@@ -143,8 +144,8 @@ impl Cmd for Extract {
     }
 }
 
-fn open(file: &PathBuf, overrides: &Overrides) -> Result<SomeBsaReader<BufReader<File>>> {
-    if let Some(vs) = &overrides.force_version {
+fn open(file: &PathBuf, open_opts: &OpenOpts) -> Result<SomeBsaReader<BufReader<File>>> {
+    if let Some(vs) = &open_opts.force_version {
         Version::from(vs).open(file)
     } else {
         bsalib::open(file)
