@@ -6,6 +6,7 @@ use std::fs::File;
 use std::fmt;
 
 use thiserror::Error;
+use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 use crate::read::BsaReader;
 use crate::bin::{Fixed, Readable, ReadableFixed, VarSize, Writable, WritableFixed, concat_bytes};
@@ -17,55 +18,8 @@ use crate::v105::BsaReaderV105;
 
 
 #[derive(Debug, Error)]
-#[error("Unknown magic number {0:#}")]
+#[error("Unknown magic number 0x{0:x}")]
 pub struct UnknownMagicNumber(u32);
-
-#[repr(u32)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum MagicNumber {
-    V001 = concat_bytes([0,0,1,0]),
-    BSA0 = concat_bytes(*b"BSA\0"),
-    BTDX = concat_bytes(*b"BTDX"),
-    DX10 = concat_bytes(*b"DX10"),
-}
-impl From<MagicNumber> for u32 {
-    fn from(nr: MagicNumber) -> u32 {
-        nr as u32
-    }
-}
-impl TryFrom<u32> for MagicNumber {
-    type Error = UnknownMagicNumber;
-    fn try_from(i: u32) -> Result<Self, UnknownMagicNumber> {
-        if i == MagicNumber::V001 as u32 { Ok(MagicNumber::V001) }
-        else if i == MagicNumber::BSA0 as u32 { Ok(MagicNumber::BSA0) }
-        else if i == MagicNumber::BTDX as u32 { Ok(MagicNumber::BTDX) }
-        else if i == MagicNumber::DX10 as u32 { Ok(MagicNumber::DX10) }
-        else { Err(UnknownMagicNumber(i)) }
-    }
-}
-impl Fixed for MagicNumber {
-    fn pos() -> usize { 0 }
-}
-impl ReadableFixed for MagicNumber {
-    fn read_fixed<R: Read + Seek>(mut reader: R) -> io::Result<MagicNumber> {
-        Self::move_to_start(&mut reader)?;
-        let raw = u32::read_bin(reader)?;
-        MagicNumber::try_from(raw)
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
-    }
-}
-impl WritableFixed for MagicNumber {
-    fn write_fixed<W: Write + Seek>(&self, mut writer: W) -> io::Result<()> {
-        Self::move_to_start(&mut writer)?;
-        (*self as u32).write(writer)
-    }
-}
-impl fmt::Display for MagicNumber {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:x}", *self as u32)
-    }
-}
-
 
 #[derive(Debug, Error)]
 #[error("Unsupported Version {0}")]
@@ -77,7 +31,38 @@ pub struct UnknownVersion(u32);
 
 
 #[repr(u32)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, TryFromPrimitive, IntoPrimitive)]
+pub enum MagicNumber {
+    V001 = concat_bytes([0,0,1,0]),
+    BSA0 = concat_bytes(*b"BSA\0"),
+    BTDX = concat_bytes(*b"BTDX"),
+    DX10 = concat_bytes(*b"DX10"),
+}
+impl Fixed for MagicNumber {
+    fn pos() -> usize { 0 }
+}
+impl ReadableFixed for MagicNumber {
+    fn read_fixed<R: Read + Seek>(mut reader: R) -> io::Result<MagicNumber> {
+        Self::move_to_start(&mut reader)?;
+        let raw = u32::read_bin(reader)?;
+        MagicNumber::try_from(raw)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, UnknownMagicNumber(raw)))
+    }
+}
+impl WritableFixed for MagicNumber {
+    fn write_fixed<W: Write + Seek>(&self, mut writer: W) -> io::Result<()> {
+        Self::move_to_start(&mut writer)?;
+        u32::from(*self).write(writer)
+    }
+}
+impl fmt::Display for MagicNumber {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:x}", *self as u32)
+    }
+}
+
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 pub enum Version10X {
     V103 = 103,
     V104 = 104,
@@ -108,18 +93,15 @@ impl Fixed for Version10X {
 impl ReadableFixed for Version10X {
     fn read_fixed<R: Read + Seek>(mut reader: R) -> io::Result<Self> {
         Self::move_to_start(&mut reader)?;
-        Ok(match u32::read_bin(&mut reader)? {
-            103 => Version10X::V103,
-            104 => Version10X::V104,
-            105 => Version10X::V105,
-            v => return Err(io::Error::new(io::ErrorKind::InvalidData, UnknownVersion(v))),
-        })
+        let raw = u32::read_bin(&mut reader)?;
+        Version10X::try_from(raw)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, UnknownVersion(raw)))
     }
 }
 impl WritableFixed for Version10X {
     fn write_fixed<W: Write + Seek>(&self, mut writer: W) -> io::Result<()> {
         Self::move_to_start(&mut writer)?;
-        (*self as u32).write(writer)
+        u32::from(*self).write(writer)
     }
 }
 

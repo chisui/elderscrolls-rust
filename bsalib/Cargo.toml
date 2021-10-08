@@ -19,3 +19,4 @@ bytemuck = { version = "1.5.1", features = ["derive"] }
 lz4 = "1.23.2"
 libflate = "1.1.0"
 thiserror = "1.0.28"
+num_enum = "0.5.4"

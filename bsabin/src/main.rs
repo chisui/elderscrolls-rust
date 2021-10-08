@@ -11,8 +11,11 @@ mod cli;
 use crate::cli::{Cmds, Info, List, Extract, Create, OpenOpts, CreateArgs};
 
 
-fn main() -> Result<()> {
-    Cmds::parse().exec()
+fn main() {
+    if let Err(err) = Cmds::parse().exec() {
+        println!("{}", err);
+        std::process::exit(1);
+    }
 }
 
 trait Cmd {
@@ -25,7 +28,7 @@ impl Cmd for Cmds {
             Cmds::List(cmd) => cmd.exec(),
             Cmds::Extract(cmd) => cmd.exec(),
             Cmds::Create(cmd) => cmd.exec(),   
-            cmd => Ok(print!("unsupported command: {:?}", cmd)),
+            cmd => Err(Error::new(ErrorKind::Unsupported, format!("{:?}", cmd))),
         }
     }
 }
