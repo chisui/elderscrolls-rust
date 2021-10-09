@@ -1,20 +1,15 @@
-use std::{
-    io::{self, Read, Write, Seek, SeekFrom, copy},
-    collections::BTreeMap,
-    mem::size_of,
-    fmt,
-};
+use std::fmt;
+use std::mem::size_of;
+use std::collections::BTreeMap;
+use std::io::{self, Read, Write, Seek, SeekFrom, copy};
 use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 
-use crate::{EntryId, Hash, Version, bin::{Fixed, ReadableFixed, WritableFixed}, read};
-use crate::bin::{
-    Readable, Writable, DataSource, Positioned,
-    derive_readable_via_pod, derive_writable_via_pod,
-};
-use crate::write::{self, BsaDirSource};
+use crate::{EntryId, Hash, Version};
+use crate::bin::{DataSource, Fixed, Positioned, Readable, ReadableFixed, Writable, WritableFixed, derive_readable_via_pod, derive_writable_via_pod};
 use crate::str::{StrError, ZString};
-use crate::read::BsaFile;
+use crate::read::{self, Reader};
+use crate::write::{self, Writer};
 use crate::version::MagicNumber;
 
 
@@ -44,6 +39,7 @@ impl fmt::Display for HeaderV001 {
 impl Fixed for HeaderV001 {
     fn pos() -> usize { size_of::<MagicNumber>() }
 }
+derive_var_size_via_size_of!(HeaderV001);
 derive_readable_fixed_via_default!(HeaderV001);
 derive_writable_fixed_via_default!(HeaderV001);
 
@@ -54,6 +50,7 @@ struct FileRecord {
     pub size: u32,
     pub offset: u32,
 }
+derive_var_size_via_size_of!(FileRecord);
 derive_readable_via_pod!(FileRecord);
 derive_writable_via_pod!(FileRecord);
 
@@ -69,19 +66,19 @@ const fn offset_after_index(header: &HeaderV001) -> u64 {
 }
 
 pub struct V001 {}
-pub type BsaWriterV001 = V001;
+pub type WriterV001 = V001;
 impl Default for V001 {
     fn default() -> Self {
         Self {}
     }
 }
-pub struct BsaReaderV001<R> {
+pub struct ReaderV001<R> {
     reader: R,
     header: HeaderV001,
-    files: Option<Vec<BsaFile>>,
+    files: Option<Vec<read::File>>,
 }
-impl<R: Read + Seek> BsaReaderV001<R> {
-    fn files(&mut self) -> io::Result<Vec<BsaFile>> {
+impl<R: Read + Seek> ReaderV001<R> {
+    fn files(&mut self) -> io::Result<Vec<read::File>> {
         let file_count = self.header.file_count as usize;
         self.reader.seek(SeekFrom::Start(offset_after_header()))?;
         
@@ -100,7 +97,7 @@ impl<R: Read + Seek> BsaReaderV001<R> {
                     Err(err) => panic!("could not read name at {}: {}", name_pos, err),
                 };
 
-                Ok(BsaFile {
+                Ok(read::File {
                     id: EntryId {
                         hash,
                         name: Some(name.to_string()),
@@ -113,10 +110,10 @@ impl<R: Read + Seek> BsaReaderV001<R> {
             .collect()
     }
 }
-impl<R> read::BsaReader for BsaReaderV001<R>
+impl<R> Reader for ReaderV001<R>
 where R: Read + Seek {
     type Header = HeaderV001;
-    type Root = Vec<BsaFile>;
+    type Root = Vec<read::File>;
     type In = R;
     
     fn read_bsa(mut reader: R) -> io::Result<Self> {
@@ -129,7 +126,7 @@ where R: Read + Seek {
     }
 
     fn header(&self) -> HeaderV001 { self.header }
-    fn list(&mut self) -> io::Result<Vec<BsaFile>> {
+    fn list(&mut self) -> io::Result<Vec<read::File>> {
         if let Some(files) = &self.files {
             Ok(files.to_vec())
         } else {
@@ -138,19 +135,19 @@ where R: Read + Seek {
             Ok(files)
         }
     }
-    fn extract<W: Write>(&mut self, file: &BsaFile, mut out: W) -> io::Result<()> {
+    fn extract<W: Write>(&mut self, file: &read::File, mut out: W) -> io::Result<()> {
         self.reader.seek(SeekFrom::Start(file.offset))?;
         let mut data = (&mut self.reader).take(file.size as u64);
         copy(&mut data, &mut out)?;
         Ok(())
     }
 }
-impl write::BsaWriter for V001 {
+impl Writer for V001 {
     type Err = V001WriteError;
     
     fn write_bsa<DS, D, W>(&self, dirs: DS, mut out: W) -> Result<(), V001WriteError>
     where
-        DS: IntoIterator<Item = BsaDirSource<D>>,
+        DS: IntoIterator<Item = write::Dir<D>>,
         D: DataSource,
         W: Write + Seek,
     {
@@ -221,7 +218,7 @@ impl write::BsaWriter for V001 {
 mod tests {
     use crate::{
         Hash,
-        read::BsaReader,
+        read::Reader,
         write::test::*,
         Version,
     };
@@ -238,7 +235,7 @@ mod tests {
 
     #[test]
     fn writes_header() {
-        let mut bytes = bsa_bytes(BsaWriterV001::default(), some_bsa_dirs());
+        let mut bytes = bsa_bytes(WriterV001::default(), some_bsa_dirs());
 
         let header = HeaderV001::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
@@ -250,8 +247,8 @@ mod tests {
     #[test]
     fn write_read_identity_bsa() {
         let dirs = some_bsa_dirs();
-        let bytes = bsa_bytes(BsaWriterV001::default(), dirs.clone());
-        let mut bsa = BsaReaderV001::read_bsa(bytes)
+        let bytes = bsa_bytes(WriterV001::default(), dirs.clone());
+        let mut bsa = ReaderV001::read_bsa(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let files = bsa.list()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));

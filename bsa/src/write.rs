@@ -3,33 +3,33 @@ use super::bin::DataSource;
 
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct BsaDirSource<D> {
+pub struct Dir<D> {
     pub name: String,
-    pub files: Vec<BsaFileSource<D>>,
+    pub files: Vec<File<D>>,
 }
-impl<D> BsaDirSource<D> {
-    pub fn new<N: Into<String>, I: IntoIterator<Item = BsaFileSource<D>>>(name: N, files: I) -> Self {
+impl<D> Dir<D> {
+    pub fn new<N: Into<String>, I: IntoIterator<Item = File<D>>>(name: N, files: I) -> Self {
         Self {
             name: name.into(),
             files: files.into_iter().collect()
         }
     }
 }
-impl<'a, D> IntoIterator for &'a BsaDirSource<D> {
-    type Item = &'a BsaFileSource<D>;
-    type IntoIter = Iter<'a, BsaFileSource<D>>;
+impl<'a, D> IntoIterator for &'a Dir<D> {
+    type Item = &'a File<D>;
+    type IntoIter = Iter<'a, File<D>>;
     fn into_iter(self) -> Self::IntoIter {
         self.files.iter()
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct BsaFileSource<D> {
+pub struct File<D> {
     pub name: String,
     pub compressed: Option<bool>,
     pub data: D,
 }
-impl<D> BsaFileSource<D> {
+impl<D> File<D> {
     pub fn new<N: Into<String>>(name: N, data: D) -> Self {
         Self {
             name: name.into(),
@@ -38,17 +38,17 @@ impl<D> BsaFileSource<D> {
         }
     }
 }
-pub trait BsaWriter {
+pub trait Writer {
     type Err = io::Error;
 
     fn write_bsa<DS, D, W>(&self, dirs: DS, out: W) -> Result<(), Self::Err>
     where
         D: DataSource,
-        DS: IntoIterator<Item = BsaDirSource<D>>,
+        DS: IntoIterator<Item = Dir<D>>,
         W: Write + Seek;
 }
 
-pub fn list_dir<P: AsRef<Path>>(dir: P) -> io::Result<Vec<BsaDirSource<PathBuf>>> {
+pub fn list_dir<P: AsRef<Path>>(dir: P) -> io::Result<Vec<Dir<PathBuf>>> {
     let mut stack = vec![PathBuf::new()];
     let mut res = vec![];
     while let Some(path) = stack.pop() {
@@ -59,7 +59,7 @@ pub fn list_dir<P: AsRef<Path>>(dir: P) -> io::Result<Vec<BsaDirSource<PathBuf>>
             if entry.file_type()?.is_dir() {
                 stack.push([&path, &PathBuf::from(entry.file_name())].iter().collect());
             } else {
-                files.push(BsaFileSource {
+                files.push(File {
                     name: entry.file_name().into_string().unwrap(),
                     compressed: None,
                     data: entry.path(),
@@ -67,7 +67,7 @@ pub fn list_dir<P: AsRef<Path>>(dir: P) -> io::Result<Vec<BsaDirSource<PathBuf>>
             }
         }
         if !files.is_empty() {
-            res.push(BsaDirSource {
+            res.push(Dir {
                 name: path.into_os_string().into_string().unwrap(), 
                 files
             });
@@ -82,15 +82,15 @@ pub(crate) mod test {
 
     use super::*;
 
-    pub fn some_bsa_dirs() -> Vec<BsaDirSource<Vec<u8>>> {
+    pub fn some_bsa_dirs() -> Vec<Dir<Vec<u8>>> {
         vec![
-            BsaDirSource::new("a", [
-                BsaFileSource::new("b", vec![1,2,3,4])
+            Dir::new("a", [
+                File::new("b", vec![1,2,3,4])
             ])
         ]
     }
 
-    pub fn bsa_bytes<W: BsaWriter, D: DataSource>(writer: W, dirs: Vec<BsaDirSource<D>>) -> Cursor<Vec<u8>>
+    pub fn bsa_bytes<W: Writer, D: DataSource>(writer: W, dirs: Vec<Dir<D>>) -> Cursor<Vec<u8>>
     where
         W::Err: Display,
     {
@@ -100,7 +100,7 @@ pub(crate) mod test {
         Cursor::new(out.into_inner())
     }
 
-    pub fn some_bsa_bytes<W: BsaWriter>() -> Cursor<Vec<u8>>
+    pub fn some_bsa_bytes<W: Writer>() -> Cursor<Vec<u8>>
     where
         W: Default,
         W::Err: Display,

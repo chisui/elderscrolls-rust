@@ -5,7 +5,7 @@ use clap::Clap;
 use glob::{Pattern, MatchOptions};
 use thiserror::Error;
 
-use bsa::{self, ArchiveFlagV105, BsaReader, BsaWriter, BsaWriterV001, BsaWriterV105, EntryId, SomeBsaReader, SomeBsaRoot, Version, list_dir, UnsupportedVersion};
+use bsa::{ArchiveFlagV105, Reader, Writer, WriterV001, WriterV105, EntryId, SomeReader, SomeRoot, Version, list_dir, UnsupportedVersion};
 
 mod cli;
 use crate::cli::{Cmds, Info, List, Extract, Create, OpenOpts, CreateArgs};
@@ -49,7 +49,7 @@ impl Cmd for List {
     fn exec(&self) -> Result<()> {
         let mut bsa = open(&self.file, &self.open_opts)?;
         match bsa.list()? {
-            SomeBsaRoot::V10X(dirs) => {
+            SomeRoot::V10X(dirs) => {
                 for dir in &dirs {
                     for file in dir {
                         if self.attributes {
@@ -61,7 +61,7 @@ impl Cmd for List {
                     }
                 }
             },
-            SomeBsaRoot::V001(files) => {
+            SomeRoot::V001(files) => {
                 for file in &files {
                     if self.attributes {
                         println!("  {0: >8} {1}", file.size / 1000, &file.id);
@@ -119,7 +119,7 @@ impl Cmd for Extract {
         let mut bsa = open(&self.file, &self.open_opts)?;
 
         match bsa.list()? {
-            SomeBsaRoot::V10X(dirs) => {
+            SomeRoot::V10X(dirs) => {
                 for dir in dirs {
                     for file in &dir {
                         let file_path = format!("{}/{}", &dir.id, &file.id);
@@ -131,7 +131,7 @@ impl Cmd for Extract {
                     }
                 }
             },
-            SomeBsaRoot::V001(files) => {
+            SomeRoot::V001(files) => {
                 for file in files {
                     let file_path = format!("{}", &file.id);
                     if matcher.matches(&file_path) {
@@ -147,7 +147,7 @@ impl Cmd for Extract {
     }
 }
 
-fn open(file: &PathBuf, open_opts: &OpenOpts) -> Result<SomeBsaReader<BufReader<File>>> {
+fn open(file: &PathBuf, open_opts: &OpenOpts) -> Result<SomeReader<BufReader<File>>> {
     if let Some(vs) = &open_opts.force_version {
         Version::from(vs).open(file)
     } else {
@@ -209,11 +209,11 @@ impl Cmd for Create {
 
         match &self.args {
             CreateArgs::V001 => {
-                BsaWriterV001{}.write_bsa( dirs, file)
+                WriterV001::default().write_bsa( dirs, file)
                     .map_err(|err| Error::new(ErrorKind::Other, err))?;
             },
             CreateArgs::V105(args) => {
-                let mut opts = BsaWriterV105::default();
+                let mut opts = WriterV105::default();
                 if args.compress {
                     opts.archive_flags |= ArchiveFlagV105::CompressedArchive;
                 }

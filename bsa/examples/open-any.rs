@@ -4,13 +4,14 @@ use std::io::Result;
 
 use bsa::*;
 
+
 fn main() -> Result<()> {
     let file = env::args()
         .nth(1)
         .map(PathBuf::from)
         .unwrap();
 
-    let bsa: SomeBsaReader<_> = bsa::open(file)?;
+    let bsa: SomeReader<_> = bsa::open(file)?;
 
     println!("{:?}", bsa.version());
     println!("{:?}", bsa.header());

@@ -12,8 +12,8 @@ use crate::compress::Compression;
 use crate::str::{BZString, BString, ZString};
 use crate::{EntryId, Hash};
 use crate::version::{Version, Version10X, MagicNumber};
-use crate::read::{BsaReader, BsaDir, BsaFile};
-use crate::write::{BsaWriter, BsaDirSource, BsaFileSource};
+use crate::read::{self, Reader};
+use crate::write::{self, Writer};
 
 
 pub trait ToArchiveBitFlags: BitFlag + fmt::Debug {
@@ -61,6 +61,7 @@ pub struct RawHeader {
 impl Fixed for RawHeader {
     fn pos() -> usize { size_of::<(MagicNumber, Version10X)>() }
 }
+derive_var_size_via_size_of!(RawHeader);
 derive_readable_fixed_via_default!(RawHeader);
 derive_writable_fixed_via_default!(RawHeader);
 
@@ -138,13 +139,16 @@ impl<AF: ToArchiveBitFlags> Has<FileFlag> for HeaderV10X<AF> {
 impl<AF: ToArchiveBitFlags + fmt::Debug> bin::Fixed for HeaderV10X<AF> {
     fn pos() -> usize { RawHeader::pos() }
 }
+impl<AF: ToArchiveBitFlags + fmt::Debug> bin::VarSize for HeaderV10X<AF> {
+    fn size(&self) -> usize { size_of::<RawHeader>() }
+}
 impl<AF: ToArchiveBitFlags + fmt::Debug> bin::ReadableFixed for HeaderV10X<AF> {
     fn read_fixed<R: Read + Seek>(reader: R) -> Result<Self> {
         let raw = RawHeader::read_fixed(reader)?;
         Ok(HeaderV10X::from(&raw))
     }
 }
-impl<AF: ToArchiveBitFlags> bin::WritableFixed for HeaderV10X<AF> {
+impl<AF: ToArchiveBitFlags> WritableFixed for HeaderV10X<AF> {
     fn write_fixed<W: Write + Seek>(&self, writer: W) -> Result<()> {
         RawHeader::from(self).write_fixed(writer)
     }
@@ -165,20 +169,20 @@ impl<AF: ToArchiveBitFlags + fmt::Debug> fmt::Display for HeaderV10X<AF> {
             writeln!(f, "    {:?}", flag)?;
         }
         writeln!(f, "Direcotries: {}", self.dir_count)?;
-        writeln!(f, "Files:   {}", self.file_count)
+        writeln!(f, "read::Files:   {}", self.file_count)
     }
 }
 
 
-pub struct BsaReaderV10X<R, T, C, AF: ToArchiveBitFlags, RDR> {
+pub struct ReaderV10X<R, T, C, AF: ToArchiveBitFlags, RDR> {
     pub(crate) reader: R,
     pub(crate) header: HeaderV10X<AF>,
-    pub(crate) dirs: Option<Vec<BsaDir>>,
+    pub(crate) dirs: Option<Vec<read::Dir>>,
     phantom_t: PhantomData<T>,
     phantom_c: PhantomData<C>,
     phantom_rdr: PhantomData<RDR>,
 }
-impl<R, T, C, AF, RDR> BsaReaderV10X<R, T, C, AF, RDR>
+impl<R, T, C, AF, RDR> ReaderV10X<R, T, C, AF, RDR>
 where
     R: Read + Seek,
     T: Versioned,
@@ -212,14 +216,14 @@ where
         })
     }
 
-    fn read_dir(&mut self, file_names: &HashMap<Hash, ZString>, dir: &DirRecord) -> Result<BsaDir> {
+    fn read_dir(&mut self, file_names: &HashMap<Hash, ZString>, dir: &DirRecord) -> Result<read::Dir> {
         let has_dir_name = self.header.has(AF::includes_file_names());
         
         self.reader.seek(SeekFrom::Start(
             dir.offset as u64 - self.header.total_file_name_length as u64))?;
         let dir_content = DirContentRecord::read_with_param(&mut self.reader, (has_dir_name, dir.file_count))?;
 
-        Ok(BsaDir {
+        Ok(read::Dir {
             id: EntryId {
                 hash: dir.name_hash,
                 name: dir_content.name
@@ -231,14 +235,14 @@ where
         })
     }
 
-    fn to_file(&mut self, file_names: &HashMap<Hash, ZString>, file: &FileRecord) -> BsaFile {
+    fn to_file(&mut self, file_names: &HashMap<Hash, ZString>, file: &FileRecord) -> read::File {
         let compressed = if self.header.has(AF::is_compressed_by_default()) {
             !file.is_compression_bit_set()
         } else {
             file.is_compression_bit_set()
         };
 
-        BsaFile {
+        read::File {
             id: EntryId {
                 hash: file.name_hash,
                 name: file_names.get(&file.name_hash)
@@ -253,7 +257,7 @@ where
 pub trait Versioned {
     fn version() -> Version10X;
 }
-impl<R, T, C, AF, RDR> BsaReader for BsaReaderV10X<R, T, C, AF, RDR>
+impl<R, T, C, AF, RDR> Reader for ReaderV10X<R, T, C, AF, RDR>
 where
     R: Read + Seek,
     T: Versioned,
@@ -282,7 +286,7 @@ where
         self.header
     }
 
-    fn list(&mut self) -> Result<Vec<BsaDir>> {
+    fn list(&mut self) -> Result<Vec<read::Dir>> {
         if let Some(dirs) = &self.dirs {
             Ok(dirs.to_vec())
         } else {
@@ -292,13 +296,13 @@ where
             let dirs = raw_dirs.iter()
                 .map(|dir| DirRecord::from(*dir) )
                 .map(|dir| self.read_dir(&file_names, &dir))
-                .collect::<Result<Vec<BsaDir>>>()?;
+                .collect::<Result<Vec<read::Dir>>>()?;
             self.dirs = Some(dirs.to_vec());
             Ok(dirs)
         } 
     }
 
-    fn extract<W: Write>(&mut self, file: &BsaFile, mut writer: W) -> Result<()> {
+    fn extract<W: Write>(&mut self, file: &read::File, mut writer: W) -> Result<()> {
         self.reader.seek(SeekFrom::Start(file.offset))?;
         
         // skip name field
@@ -329,6 +333,7 @@ pub struct DirRecord {
     pub file_count: u32,
     pub offset: u32,
 }
+derive_var_size_via_size_of!(DirRecord);
 derive_readable_via_pod!(DirRecord);
 derive_writable_via_pod!(DirRecord);
 
@@ -391,7 +396,7 @@ struct FileNames {
     values: Vec<ZString>,
 }
 
-pub struct BsaWriterV10X<T, C, AF: BitFlag, RDR> {
+pub struct WriterV10X<T, C, AF: BitFlag, RDR> {
     phantom_t: PhantomData<T>,
     phantom_c: PhantomData<C>,
     phantom_af: PhantomData<AF>,
@@ -399,7 +404,7 @@ pub struct BsaWriterV10X<T, C, AF: BitFlag, RDR> {
     pub archive_flags: BitFlags<AF>,
     pub file_flags: BitFlags<FileFlag>,
 }
-impl<T, C, AF, RDR> BsaWriterV10X<T, C, AF, RDR>
+impl<T, C, AF, RDR> WriterV10X<T, C, AF, RDR>
 where
     T: Versioned,
     C: Compression,
@@ -426,7 +431,7 @@ where
         version.write_fixed(&mut out)
     }
 
-    fn write_header<W, D>(&self, dirs: &Vec<BsaDirSource<D>>, out: W) -> Result<FileNames> 
+    fn write_header<W, D>(&self, dirs: &Vec<write::Dir<D>>, out: W) -> Result<FileNames> 
     where W: Write + Seek,
     {
         let mut header = HeaderV10X::<AF>::from(self);
@@ -460,7 +465,7 @@ where
         })
     }
 
-    fn write_dir_record<W, D>(dir: &BsaDirSource<D>, out: W) -> Result<Positioned<RDR>>
+    fn write_dir_record<W, D>(dir: &write::Dir<D>, out: W) -> Result<Positioned<RDR>>
     where W: Write + Seek {
         let rec = DirRecord {
             name_hash: Hash::v10x(&dir.name),
@@ -470,14 +475,14 @@ where
         Positioned::new(RDR::from(rec), out)
     }
 
-    fn write_dir_records<W, D>(dirs: &Vec<BsaDirSource<D>>, mut out: W) -> Result<Vec<Positioned<RDR>>>
+    fn write_dir_records<W, D>(dirs: &Vec<write::Dir<D>>, mut out: W) -> Result<Vec<Positioned<RDR>>>
     where W: Write + Seek {
         dirs.iter()
             .map(|dir| Self::write_dir_record(dir, &mut out))
             .collect()
     }
 
-    fn write_dir_content_record<W, D>(&self, dir: &BsaDirSource<D>, out: W) -> Result<Positioned<DirContentRecord>>
+    fn write_dir_content_record<W, D>(&self, dir: &write::Dir<D>, out: W) -> Result<Positioned<DirContentRecord>>
     where W: Write + Seek {
         let name = if self.has(AF::includes_dir_names()) {
             let s = BZString::new(dir.name.to_lowercase())?;
@@ -501,7 +506,7 @@ where
 
     fn write_dir_content_records<W, D>(
         &self,
-        dirs: &Vec<BsaDirSource<D>>,
+        dirs: &Vec<write::Dir<D>>,
         dir_records: &mut Vec<Positioned<RDR>>,
         total_file_name_length: u32,
         mut out: W,
@@ -530,7 +535,7 @@ where
             .write(out)
     }
 
-    fn write_file_content<W, D>(&self, dir: &BsaDirSource<D>, file: &BsaFileSource<D>, mut out: W) -> Result<u64>
+    fn write_file_content<W, D>(&self, dir: &write::Dir<D>, file: &write::File<D>, mut out: W) -> Result<u64>
     where
         W: Write + Seek,
         D: DataSource,
@@ -553,7 +558,7 @@ where
 
     fn write_file_contents<W, D: DataSource>(
         &self,
-        dirs: &Vec<BsaDirSource<D>>,
+        dirs: &Vec<write::Dir<D>>,
         dir_content_records: &mut Vec<Positioned<DirContentRecord>>,
         mut out: W,
     ) -> Result<()>
@@ -570,7 +575,7 @@ where
     }
    
 }
-impl<T, C, AF, RDR> Default for BsaWriterV10X<T, C, AF, RDR>
+impl<T, C, AF, RDR> Default for WriterV10X<T, C, AF, RDR>
 where
     T: Versioned,
     C: Compression,
@@ -581,26 +586,26 @@ where
         Self::new([AF::includes_file_names(), AF::includes_dir_names()], [])
     }
 }
-impl<T, C, AF: ToArchiveBitFlags, RDR> From<&BsaWriterV10X<T, C, AF, RDR>> for HeaderV10X<AF> {
-    fn from(opts: &BsaWriterV10X<T, C, AF, RDR>) -> Self { 
+impl<T, C, AF: ToArchiveBitFlags, RDR> From<&WriterV10X<T, C, AF, RDR>> for HeaderV10X<AF> {
+    fn from(opts: &WriterV10X<T, C, AF, RDR>) -> Self { 
         let mut header = Self::default();
         header.archive_flags = opts.archive_flags;
         header.file_flags = opts.file_flags;
         header
     }
 }
-impl<T, C, AF: ToArchiveBitFlags, RDR> Has<AF> for BsaWriterV10X<T, C, AF, RDR> {
+impl<T, C, AF: ToArchiveBitFlags, RDR> Has<AF> for WriterV10X<T, C, AF, RDR> {
     fn has(&self, f: AF) -> bool {
         self.archive_flags.contains(f)
     }
 }
-impl<T, C, AF: ToArchiveBitFlags, RDR> Has<FileFlag> for BsaWriterV10X<T, C, AF, RDR> {
+impl<T, C, AF: ToArchiveBitFlags, RDR> Has<FileFlag> for WriterV10X<T, C, AF, RDR> {
     fn has(&self, f: FileFlag) -> bool {
         self.file_flags.contains(f)
     }
 }
 
-impl<T, C, AF, RDR> BsaWriter for BsaWriterV10X<T, C, AF, RDR>
+impl<T, C, AF, RDR> Writer for WriterV10X<T, C, AF, RDR>
 where
     T: Versioned,
     C: Compression,
@@ -609,11 +614,11 @@ where
 {
     fn write_bsa<DS, D, W>(&self, raw_dirs: DS, mut out: W) -> Result<()>
     where
-        DS: IntoIterator<Item = BsaDirSource<D>>,
+        DS: IntoIterator<Item = write::Dir<D>>,
         D: DataSource,
         W: Write + Seek,
     {
-        let dirs: Vec<BsaDirSource<D>> = raw_dirs.into_iter().collect();
+        let dirs: Vec<write::Dir<D>> = raw_dirs.into_iter().collect();
         Self::write_version(&mut out)?;
         let file_names = self.write_header(&dirs, &mut out)?;
         let mut dir_records = Self::write_dir_records(&dirs, &mut out)?;

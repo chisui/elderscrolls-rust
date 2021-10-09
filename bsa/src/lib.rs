@@ -4,15 +4,15 @@
 mod bin;
 mod compress;
 mod str;
-mod read;
-mod write;
+pub mod read;
+pub mod write;
 mod hash;
-mod version;
-mod v001;
+pub mod version;
+pub mod v001;
 mod v10x;
-mod v103;
-mod v104;
-mod v105;
+pub mod v103;
+pub mod v104;
+pub mod v105;
 
 use std::io::{self, Read, Seek, Write};
 use bin::ReadableFixed;
@@ -20,60 +20,61 @@ use thiserror::Error;
 
 pub use crate::hash::Hash;
 pub use crate::version::*;
-pub use crate::read::{open, BsaReader, BsaDir, BsaFile, EntryId};
-pub use crate::write::{BsaDirSource, BsaFileSource, BsaWriter, list_dir};
-pub use crate::v001::{V001, BsaReaderV001, HeaderV001, BsaWriterV001};
+pub use crate::bin::DataSource;
+pub use crate::read::{open, Reader, EntryId};
+pub use crate::write::{list_dir, Writer};
+pub use crate::v001::{V001, ReaderV001, HeaderV001, WriterV001};
 pub use crate::v10x::{ToArchiveBitFlags, FileFlag};
-pub use crate::v103::{V103, BsaReaderV103, HeaderV103, BsaWriterV103, ArchiveFlagV103};
-pub use crate::v104::{V104, BsaReaderV104, HeaderV104, BsaWriterV104, ArchiveFlagV104};
-pub use crate::v105::{V105, BsaReaderV105, HeaderV105, BsaWriterV105, ArchiveFlagV105};
+pub use crate::v103::{V103, ReaderV103, HeaderV103, WriterV103, ArchiveFlagV103};
+pub use crate::v104::{V104, ReaderV104, HeaderV104, WriterV104, ArchiveFlagV104};
+pub use crate::v105::{V105, ReaderV105, HeaderV105, WriterV105, ArchiveFlagV105};
 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error)]
-pub enum ForSomeBsaVersion<A001, A10X> {
+pub enum ForSomeVersion<A001, A10X> {
     #[error("{0}")] V001(A001),
     #[error("{0}")] V10X(A10X),
 }
-impl<A001, A103, A104, A105> ForSomeBsaVersion<A001, ForSomeBsaVersion10X<A103, A104, A105>> {
+impl<A001, A103, A104, A105> ForSomeVersion<A001, ForSomeVersion10X<A103, A104, A105>> {
     pub fn version(&self) -> Version {
         match self {
-            ForSomeBsaVersion::V001(_) => Version::V001,
-            ForSomeBsaVersion::V10X(v) => Version::V10X(v.version()),
+            ForSomeVersion::V001(_) => Version::V001,
+            ForSomeVersion::V10X(v) => Version::V10X(v.version()),
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error)]
-pub enum ForSomeBsaVersion10X<A103, A104, A105> {
+pub enum ForSomeVersion10X<A103, A104, A105> {
     #[error("{0}")] V103(A103),
     #[error("{0}")] V104(A104),
     #[error("{0}")] V105(A105),
 }
-impl<A103, A104, A105> ForSomeBsaVersion10X<A103, A104, A105> {
+impl<A103, A104, A105> ForSomeVersion10X<A103, A104, A105> {
     pub fn version(&self) -> Version10X {
         match self {
-            ForSomeBsaVersion10X::V103(_) => Version10X::V103,
-            ForSomeBsaVersion10X::V104(_) => Version10X::V104,
-            ForSomeBsaVersion10X::V105(_) => Version10X::V105,
+            ForSomeVersion10X::V103(_) => Version10X::V103,
+            ForSomeVersion10X::V104(_) => Version10X::V104,
+            ForSomeVersion10X::V105(_) => Version10X::V105,
         }
     }
 }
 
-pub type SomeBsaHeaderV10X = ForSomeBsaVersion10X<HeaderV103, HeaderV104, HeaderV105>;
-pub type SomeBsaHeader = ForSomeBsaVersion<HeaderV001, SomeBsaHeaderV10X>;
+pub type SomeHeaderV10X = ForSomeVersion10X<HeaderV103, HeaderV104, HeaderV105>;
+pub type SomeHeader = ForSomeVersion<HeaderV001, SomeHeaderV10X>;
 
-pub type SomeBsaReaderV10X<R> = ForSomeBsaVersion10X<BsaReaderV103<R>, BsaReaderV104<R>, BsaReaderV105<R>>;
-pub type SomeBsaReader<R> = ForSomeBsaVersion<BsaReaderV001<R>, SomeBsaReaderV10X<R>>;
+pub type SomeReaderV10X<R> = ForSomeVersion10X<ReaderV103<R>, ReaderV104<R>, ReaderV105<R>>;
+pub type SomeReader<R> = ForSomeVersion<ReaderV001<R>, SomeReaderV10X<R>>;
 
-pub type SomeBsaWriterV10X = ForSomeBsaVersion10X<BsaWriterV103, BsaWriterV104, BsaWriterV105>;
-pub type SomeBsaWriter = ForSomeBsaVersion<BsaWriterV001, SomeBsaWriterV10X>;
+pub type SomeWriterV10X = ForSomeVersion10X<WriterV103, WriterV104, WriterV105>;
+pub type SomeWriter = ForSomeVersion<WriterV001, SomeWriterV10X>;
 
-pub type SomeBsaRoot = ForSomeBsaVersion<Vec<BsaFile>, Vec<BsaDir>>;
+pub type SomeRoot = ForSomeVersion<Vec<read::File>, Vec<read::Dir>>;
 
-impl<R> BsaReader for SomeBsaReader<R>
+impl<R> Reader for SomeReader<R>
 where R: Read + Seek {
-    type Header = SomeBsaHeader;
-    type Root = SomeBsaRoot;
+    type Header = SomeHeader;
+    type Root = SomeRoot;
     type In = R;
 
     fn read_bsa(mut reader: R) -> io::Result<Self> {
@@ -83,31 +84,31 @@ where R: Read + Seek {
 
     fn header(&self) -> Self::Header {
         match self {
-            ForSomeBsaVersion::V001(bsa) => ForSomeBsaVersion::V001(bsa.header()),
-            ForSomeBsaVersion::V10X(bsa) => ForSomeBsaVersion::V10X(bsa.header()),
+            ForSomeVersion::V001(bsa) => ForSomeVersion::V001(bsa.header()),
+            ForSomeVersion::V10X(bsa) => ForSomeVersion::V10X(bsa.header()),
         }
     }
 
-    fn list(&mut self) -> io::Result<SomeBsaRoot> {
+    fn list(&mut self) -> io::Result<SomeRoot> {
         match self {
-            ForSomeBsaVersion::V001(bsa) => bsa.list().map(SomeBsaRoot::V001),
-            ForSomeBsaVersion::V10X(bsa) => bsa.list().map(SomeBsaRoot::V10X),
+            ForSomeVersion::V001(bsa) => bsa.list().map(SomeRoot::V001),
+            ForSomeVersion::V10X(bsa) => bsa.list().map(SomeRoot::V10X),
         }
     }
 
-    fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> io::Result<()> {
+    fn extract<W: Write>(&mut self, file: &read::File, writer: W) -> io::Result<()> {
         match self {
-            ForSomeBsaVersion::V001(bsa) => bsa.extract(file, writer),
-            ForSomeBsaVersion::V10X(bsa) => bsa.extract(file, writer),
+            ForSomeVersion::V001(bsa) => bsa.extract(file, writer),
+            ForSomeVersion::V10X(bsa) => bsa.extract(file, writer),
         }
     }
 }
 
 
-impl<R> BsaReader for SomeBsaReaderV10X<R>
+impl<R> Reader for SomeReaderV10X<R>
 where R: Read + Seek {
-    type Header = SomeBsaHeaderV10X;
-    type Root = Vec<BsaDir>;
+    type Header = SomeHeaderV10X;
+    type Root = Vec<read::Dir>;
     type In = R;
 
     fn read_bsa(mut reader: R) -> io::Result<Self> {
@@ -117,68 +118,68 @@ where R: Read + Seek {
 
     fn header(&self) -> Self::Header {
         match self {
-            ForSomeBsaVersion10X::V103(bsa) => ForSomeBsaVersion10X::V103(bsa.header()),
-            ForSomeBsaVersion10X::V104(bsa) => ForSomeBsaVersion10X::V104(bsa.header()),
-            ForSomeBsaVersion10X::V105(bsa) => ForSomeBsaVersion10X::V105(bsa.header()),
+            ForSomeVersion10X::V103(bsa) => ForSomeVersion10X::V103(bsa.header()),
+            ForSomeVersion10X::V104(bsa) => ForSomeVersion10X::V104(bsa.header()),
+            ForSomeVersion10X::V105(bsa) => ForSomeVersion10X::V105(bsa.header()),
         }
     }
 
-    fn list(&mut self) -> io::Result<Vec<BsaDir>> {
+    fn list(&mut self) -> io::Result<Vec<read::Dir>> {
         match self {
-            ForSomeBsaVersion10X::V103(bsa) => bsa.list(),
-            ForSomeBsaVersion10X::V104(bsa) => bsa.list(),
-            ForSomeBsaVersion10X::V105(bsa) => bsa.list(),
+            ForSomeVersion10X::V103(bsa) => bsa.list(),
+            ForSomeVersion10X::V104(bsa) => bsa.list(),
+            ForSomeVersion10X::V105(bsa) => bsa.list(),
         }
     }
 
-    fn extract<W: Write>(&mut self, file: &BsaFile, writer: W) -> io::Result<()> {
+    fn extract<W: Write>(&mut self, file: &read::File, writer: W) -> io::Result<()> {
         match self {
-            ForSomeBsaVersion10X::V103(bsa) => bsa.extract(file, writer),
-            ForSomeBsaVersion10X::V104(bsa) => bsa.extract(file, writer),
-            ForSomeBsaVersion10X::V105(bsa) => bsa.extract(file, writer),
+            ForSomeVersion10X::V103(bsa) => bsa.extract(file, writer),
+            ForSomeVersion10X::V104(bsa) => bsa.extract(file, writer),
+            ForSomeVersion10X::V105(bsa) => bsa.extract(file, writer),
         }
     }
 }
 
-impl BsaWriter for SomeBsaWriter {
-    type Err = ForSomeBsaVersion<
-        <BsaWriterV001 as BsaWriter>::Err,
-        ForSomeBsaVersion10X<
-            <BsaWriterV103 as BsaWriter>::Err,
-            <BsaWriterV104 as BsaWriter>::Err,
-            <BsaWriterV105 as BsaWriter>::Err,
+impl Writer for SomeWriter {
+    type Err = ForSomeVersion<
+        <WriterV001 as Writer>::Err,
+        ForSomeVersion10X<
+            <WriterV103 as Writer>::Err,
+            <WriterV104 as Writer>::Err,
+            <WriterV105 as Writer>::Err,
         >,
     >;
 
     fn write_bsa<DS, D, W>(&self, dirs: DS, out: W) -> Result<(), Self::Err>
     where
         D: bin::DataSource,
-        DS: IntoIterator<Item = BsaDirSource<D>>,
+        DS: IntoIterator<Item = write::Dir<D>>,
         W: Write + Seek {
             match self {
-                ForSomeBsaVersion::V001(writer) => writer.write_bsa(dirs, out).map_err(ForSomeBsaVersion::V001),
-                ForSomeBsaVersion::V10X(writer) => writer.write_bsa(dirs, out).map_err(ForSomeBsaVersion::V10X),
+                ForSomeVersion::V001(writer) => writer.write_bsa(dirs, out).map_err(ForSomeVersion::V001),
+                ForSomeVersion::V10X(writer) => writer.write_bsa(dirs, out).map_err(ForSomeVersion::V10X),
             }
     }
 }
 
 
-impl BsaWriter for SomeBsaWriterV10X {
-    type Err = ForSomeBsaVersion10X<
-        <BsaWriterV103 as BsaWriter>::Err,
-        <BsaWriterV104 as BsaWriter>::Err,
-        <BsaWriterV105 as BsaWriter>::Err,
+impl Writer for SomeWriterV10X {
+    type Err = ForSomeVersion10X<
+        <WriterV103 as Writer>::Err,
+        <WriterV104 as Writer>::Err,
+        <WriterV105 as Writer>::Err,
     >;
 
     fn write_bsa<DS, D, W>(&self, dirs: DS, out: W) -> Result<(), Self::Err>
     where
         D: bin::DataSource,
-        DS: IntoIterator<Item = BsaDirSource<D>>,
+        DS: IntoIterator<Item = write::Dir<D>>,
         W: Write + Seek {
             match self {
-                ForSomeBsaVersion10X::V103(writer) => writer.write_bsa(dirs, out).map_err(ForSomeBsaVersion10X::V103),
-                ForSomeBsaVersion10X::V104(writer) => writer.write_bsa(dirs, out).map_err(ForSomeBsaVersion10X::V104),
-                ForSomeBsaVersion10X::V105(writer) => writer.write_bsa(dirs, out).map_err(ForSomeBsaVersion10X::V105),
+                ForSomeVersion10X::V103(writer) => writer.write_bsa(dirs, out).map_err(ForSomeVersion10X::V103),
+                ForSomeVersion10X::V104(writer) => writer.write_bsa(dirs, out).map_err(ForSomeVersion10X::V104),
+                ForSomeVersion10X::V105(writer) => writer.write_bsa(dirs, out).map_err(ForSomeVersion10X::V105),
             }
     }
 }

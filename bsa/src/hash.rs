@@ -5,15 +5,20 @@ use crate::bin::concat_bytes;
 use crate::bin::{derive_readable_via_pod, derive_writable_via_pod};
 
 
+/// The hash of a name inside a bsa archive.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Zeroable, Pod)]
 pub struct Hash {
     low: u32,
     high: u32,
 }
+derive_var_size_via_size_of!(Hash);
 derive_readable_via_pod!(Hash);
 derive_writable_via_pod!(Hash);
 impl Hash {
+
+    /// Hash the name using the v001 hash algorithm.
+    /// See https://en.uesp.net/wiki/Morrowind_Mod:BSA_File_Format#Hash_calculation.
     pub fn v001<S>(s: S) -> Self
     where S: AsRef<str> {
         let path = sanitize(s);
@@ -36,7 +41,8 @@ impl Hash {
         }
     }
 
-
+    /// Hash the name using the v10x hash algorithm.
+    /// See https://en.uesp.net/wiki/Oblivion_Mod:Hash_Calculation
     pub fn v10x<S>(s: S) -> Self
     where S: AsRef<str> {
         let path = sanitize(s);

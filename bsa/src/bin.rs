@@ -6,6 +6,8 @@ use std::{
 use bytemuck::Pod;
 
 
+/// Reinterprets the next n bytes of the input as a struct,
+/// where n is the size of the struct.
 pub fn read_struct<S: Pod, R: Read>(mut reader: R) -> Result<S> {
     let mut val = S::zeroed();
     let slice = bytemuck::bytes_of_mut(&mut val);
@@ -13,21 +15,30 @@ pub fn read_struct<S: Pod, R: Read>(mut reader: R) -> Result<S> {
     Ok(val)
 }
 
+/// Reinterprets the struct as bytes and writes them to the output.
 pub fn write_struct<S: Pod, W: Write>(val: &S, mut writer: W) -> Result<()> {
     let bytes = bytemuck::bytes_of(val);
     writer.write_all(bytes)
 }
 
+/// A struct with a fixed position inside of a bytestream.
+pub trait Fixed: Sized {
 
-pub trait Fixed {
+    /// The position of the struct.
     fn pos() -> usize;
 
+    /// Move to the start of this structs position.
     fn move_to_start<S: Seek>(mut seek: S) -> Result<()> {
         seek.seek(SeekFrom::Start(Self::pos() as u64))?;
         Ok(())
     }
 }
+
+/// A struct that has a known size at runtime.
+/// This may also be implemented for structs that are Sized.
 pub trait VarSize {
+
+    /// The current size in bytes of the struct.
     fn size(&self) -> usize;
 }
 macro_rules! derive_var_size_via_size_of {
@@ -44,6 +55,16 @@ derive_var_size_via_size_of!(u8);
 derive_var_size_via_size_of!(u16);
 derive_var_size_via_size_of!(u32);
 derive_var_size_via_size_of!(u64);
+impl<A: VarSize> VarSize for [A] {
+    fn size(&self) -> usize {
+        self.iter().map(A::size).sum()
+    }
+}
+impl<A: VarSize> VarSize for &[A] {
+    fn size(&self) -> usize {
+        self.iter().map(A::size).sum()
+    }
+}
 impl<A: VarSize> VarSize for Vec<A> {
     fn size(&self) -> usize {
         self.iter().map(A::size).sum()
@@ -54,9 +75,17 @@ impl<A: VarSize> VarSize for Option<A> {
         self.iter().map(A::size).sum()
     }
 }
-pub trait ReadableFixed: Sized {
+
+/// A struct that can be Read at a fixed size
+pub trait ReadableFixed: Fixed {
+
+    /// Read the struct from the input.
+    /// After this operation the input should be at the first byte after the
+    /// read struct.
     fn read_fixed<R: Read + Seek>(reader: R) -> Result<Self>;
 }
+
+/// default implementation for read_fixed using Fixed and read_struct.
 pub fn read_fixed_default<A: Fixed + Pod, R: Read + Seek>(mut reader: R) -> Result<A> {
     A::move_to_start(&mut reader)?;
     read_struct(reader)
@@ -70,9 +99,17 @@ macro_rules! derive_readable_fixed_via_default {
         }
     };
 }
-pub trait Readable: Sized {
+
+/// A struct that can be read from a bytestream.
+pub trait Readable: VarSize + Sized {
+
+    /// Read the struct from the stream.
+    /// This should consume exactly the number of bytes that [`VarSize::size()`] returns.
     fn read_bin<R: Read>(reader: R) -> Result<Self>;
 
+    /// Read multiple of the struct from a stream.
+    /// This should consume exactly the number of bytes that [`VarSize::size()`] returns
+    /// for each of the elements.
     fn read_bin_many<R: Read>(mut reader: R, num: usize) -> Result<Vec<Self>> {
         let mut vals = Vec::new();
         for _ in 0..num {
@@ -83,9 +120,17 @@ pub trait Readable: Sized {
     }
 }
 
-pub trait ReadableParam<P>: Sized {
+/// A struct that can be read from a bytestream but needs additional parameters
+/// to be read.
+pub trait ReadableParam<P>: VarSize + Sized {
+    
+    /// Read the struct from the stream.
+    /// This should consume exactly the number of bytes that [`VarSize::size()`] returns.
     fn read_with_param<R: Read>(reader: R, param: P) -> Result<Self>;
 
+    /// Read multiple of the struct from a stream.
+    /// This should consume exactly the number of bytes that [`VarSize::size()`] returns
+    /// for each of the elements.
     fn read_with_param_many<R: Read + Seek>(mut reader: R, num: usize, param: P) -> Result<Vec<Self>>
     where P: Copy {
         let mut vals = Vec::new();
@@ -112,9 +157,17 @@ derive_readable_via_pod!(u16);
 derive_readable_via_pod!(u32);
 derive_readable_via_pod!(u64);
 
-pub trait WritableFixed: Fixed {
+
+/// A struct that can be read from a bytestream at a fixed position.
+pub trait WritableFixed: Fixed + VarSize {
+
+    /// Write the struct.
+    /// After this operation the output should be at the first byte after the
+    /// writen struct.
     fn write_fixed<W: Write + Seek>(&self, writer: W) -> Result<()>;
 }
+
+/// default implementation for write_fixed using Fixed and write_struct.
 pub fn write_fixed_default<A: Fixed + Pod, R: Write + Seek>(val: &A, mut writer: R) -> Result<()> {
     A::move_to_start(&mut writer)?;
     write_struct(val, writer)
@@ -128,7 +181,12 @@ macro_rules! derive_writable_fixed_via_default {
         }
     };
 }
-pub trait Writable {
+
+/// A struct that can be written to a bytestream.
+pub trait Writable: VarSize {
+
+    /// Write a struct to the output.
+    /// This should write exatly [`VarSize::size()`] bytes.
     fn write<W: Write>(&self, writer: W) -> Result<()>;
 }
 impl<A: Writable> Writable for [A] {
@@ -170,28 +228,37 @@ pub(crate) use derive_writable_via_into_iter;
 derive_writable_via_into_iter!(Vec);
 derive_writable_via_into_iter!(Option);
 
+/// Concat bytes into a u32 by casting and bitshifting the components.
 pub const fn concat_bytes([a, b, c, d]: [u8; 4]) -> u32 {
     (a as u32) | ((b as u32) << 8) | ((c as u32) << 16) | ((d as u32) << 24)
 }
 
+/// A struct with a fixed position inside a bytestream where the position is only known at runtime.
+/// It provides a way to repeatedly write the struct at the same position.
 pub struct Positioned<A> {
     pub position: u64,
     pub data: A,
 }
 impl<A: Writable> Positioned<A> {
     
+    /// Create a new Positioned struct at the current position of the output.
+    /// This writes the struct at the current position.
     pub fn new<W: Write + Seek>(data: A, mut out: W) -> Result<Self> {
         let position = out.stream_position()?;
         data.write(&mut out)?;
         Ok(Self { position, data })
     }
 
+    /// Create a new empty Positioned struct at the current position of the output.
+    /// This writes the struct at the current position.
     pub fn new_empty<W: Write + Seek>(out: W) ->  Result<Self> 
     where A: Default {
         Self::new(A::default(), out)
     }
 
-    pub fn update<W: Write + Seek>(&mut self, mut out: W) -> Result<()> {
+    /// Write the current value of this Positioned to the output at its position.
+    /// After the update the pointer is returned to it's previous position in the output.
+    pub fn update<W: Write + Seek>(&self, mut out: W) -> Result<()> {
         let tmp_pos = out.stream_position()?;
         out.seek(SeekFrom::Start(self.position))?;
         self.data.write(&mut out)?;
@@ -200,6 +267,8 @@ impl<A: Writable> Positioned<A> {
     }
 }
 
+/// The DataSource provides a way to retrieve a reader.
+/// Each reader returned by [`open()`] should be fresh.
 pub trait DataSource
 where Self::Read: Read {
     type Read;

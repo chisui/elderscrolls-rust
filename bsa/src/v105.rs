@@ -1,6 +1,7 @@
 use bytemuck::{Zeroable, Pod};
 
-use crate::{v10x::{self, BsaReaderV10X, BsaWriterV10X, Versioned}, version::Version10X};
+use crate::version::Version10X;
+use crate::v10x::{self, ReaderV10X, WriterV10X, Versioned};
 use crate::hash::Hash;
 use crate::compress::Lz4;
 use crate::v104::{HeaderV104, ArchiveFlagV104};
@@ -15,6 +16,7 @@ pub struct RawDirRecord {
     pub offset: u32,
     pub _padding_post: u32,
 }
+derive_var_size_via_size_of!(RawDirRecord);
 derive_readable_via_pod!(RawDirRecord);
 derive_writable_via_pod!(RawDirRecord);
 impl From<RawDirRecord> for v10x::DirRecord {
@@ -41,8 +43,8 @@ impl From<v10x::DirRecord> for RawDirRecord {
 
 pub type ArchiveFlagV105 = ArchiveFlagV104;
 pub type HeaderV105 = HeaderV104;
-pub type BsaReaderV105<R> = BsaReaderV10X<R, V105, Lz4, ArchiveFlagV105, RawDirRecord>;
-pub type BsaWriterV105 = BsaWriterV10X<V105, Lz4, ArchiveFlagV105, RawDirRecord>;
+pub type ReaderV105<R> = ReaderV10X<R, V105, Lz4, ArchiveFlagV105, RawDirRecord>;
+pub type WriterV105 = WriterV10X<V105, Lz4, ArchiveFlagV105, RawDirRecord>;
 
 pub enum V105 {}
 impl Versioned for V105 {
@@ -54,11 +56,18 @@ mod tests {
     use std::io::{Cursor, Seek, SeekFrom};
     use enumflags2::BitFlags;
     use super::*;
-    use crate::{Hash, bin::{Readable, ReadableFixed, ReadableParam}, compress::Compression, read::{BsaReader}, str::BZString, v105, version::{Version, Version10X}, write::{BsaDirSource, test::*}};
+    use crate::Hash;
+    use crate::write::{Dir, test::*};
+    use crate::version::{Version, Version10X};
+    use crate::v105;
+    use crate::str::BZString;
+    use crate::read::{Reader};
+    use crate::compress::Compression;
+    use crate::bin::{Readable, ReadableFixed, ReadableParam};
 
     #[test]
     fn writes_version() {
-        let mut bytes = some_bsa_bytes::<BsaWriterV105>();
+        let mut bytes = some_bsa_bytes::<WriterV105>();
 
         let v = Version::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read version {}", err));
@@ -67,7 +76,7 @@ mod tests {
 
     #[test]
     fn writes_header() {
-        let mut bytes = some_bsa_bytes::<BsaWriterV105>();
+        let mut bytes = some_bsa_bytes::<WriterV105>();
 
         let header = HeaderV105::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
@@ -85,7 +94,7 @@ mod tests {
 
     #[test]
     fn writes_dir_records() {
-        let mut bytes = some_bsa_bytes::<BsaWriterV105>();
+        let mut bytes = some_bsa_bytes::<WriterV105>();
 
         HeaderV105::read_fixed(&mut bytes)
             .unwrap_or_else(|err| panic!("could not read header {}", err));
@@ -100,7 +109,7 @@ mod tests {
 
     #[test]
     fn writes_dir_content_records() {
-        let mut bytes = some_bsa_bytes::<BsaWriterV105>();
+        let mut bytes = some_bsa_bytes::<WriterV105>();
 
 
         let header = HeaderV105::read_fixed(&mut bytes)
@@ -151,8 +160,8 @@ mod tests {
     }
 
     fn check_write_read_identity_bsa(dirs: Vec<BsaDirSource<Vec<u8>>>) {
-        let bytes = bsa_bytes(BsaWriterV105::default(), dirs.clone());
-        let mut bsa = BsaReaderV105::read_bsa(bytes)
+        let bytes = bsa_bytes(WriterV105::default(), dirs.clone());
+        let mut bsa = ReaderV105::read_bsa(bytes)
             .unwrap_or_else(|err| panic!("could not open bsa {}", err));
         let in_dirs = bsa.list()
             .unwrap_or_else(|err| panic!("could not read dirs {}", err));

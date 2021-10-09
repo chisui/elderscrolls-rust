@@ -10,15 +10,15 @@ fn main() -> Result<()> {
         .map(PathBuf::from)
         .unwrap();
 
-    let mut bsa: SomeBsaReader<_> = bsa::open(file)?;
+    let mut bsa: SomeReader<_> = bsa::open(file)?;
 
     match bsa.list()? {
-        SomeBsaRoot::V001(files) => {
+        SomeRoot::V001(files) => {
             for file in files {
                 println!("{}", &file.id);
             }
         },
-        SomeBsaRoot::V10X(dirs) => {
+        SomeRoot::V10X(dirs) => {
             for dir in dirs {
                 for file in &dir {
                     println!("{}\\{}", &dir.id, &file.id);

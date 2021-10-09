@@ -4,6 +4,7 @@ use std::io::Result;
 
 use bsa::*;
 
+
 fn main() -> Result<()> {
     let file = env::args()
         .nth(1)
@@ -11,7 +12,7 @@ fn main() -> Result<()> {
         .unwrap();
 
     println!("{:?}", file);
-    let mut bsa: BsaReaderV001<_> = bsa::open(file)?;
+    let mut bsa: ReaderV001<_> = bsa::open(file)?;
 
     for file in bsa.list()? {
         println!("{}", &file.id);

@@ -21,6 +21,7 @@ impl From<StrError> for io::Error {
     }
 }
 
+/// A [`String`] That is represented by a length byte followed by its chars.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BString(String);
 
@@ -64,6 +65,7 @@ impl Writable for BString {
     }
 }
 
+/// A [`String`] That is represented by its chars followed by a 0 byte.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ZString(String);
 impl ZString {
@@ -115,6 +117,8 @@ impl Writable for ZString {
     }
 }
 
+/// A [`String`] That is represented by a length byte followed its chars followed by a 0 byte.
+/// The length byte includes the 0 byte.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BZString(String);
 

@@ -8,12 +8,12 @@ use std::fmt;
 use thiserror::Error;
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
-use crate::read::BsaReader;
+use crate::read::Reader;
 use crate::bin::{Fixed, Readable, ReadableFixed, VarSize, Writable, WritableFixed, concat_bytes};
-use crate::v001::BsaReaderV001;
-use crate::v103::BsaReaderV103;
-use crate::v104::BsaReaderV104;
-use crate::v105::BsaReaderV105;
+use crate::v001::ReaderV001;
+use crate::v103::ReaderV103;
+use crate::v104::ReaderV104;
+use crate::v105::ReaderV105;
 
 
 
@@ -41,6 +41,7 @@ pub enum MagicNumber {
 impl Fixed for MagicNumber {
     fn pos() -> usize { 0 }
 }
+derive_var_size_via_size_of!(MagicNumber);
 impl ReadableFixed for MagicNumber {
     fn read_fixed<R: Read + Seek>(mut reader: R) -> io::Result<MagicNumber> {
         Self::move_to_start(&mut reader)?;
@@ -70,11 +71,11 @@ pub enum Version10X {
 }
 derive_var_size_via_size_of!(Version10X);
 impl Version10X {
-    pub fn read_bsa<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReaderV10X<R>> {
+    pub fn read_bsa<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeReaderV10X<R>> {
         match self {
-            Version10X::V103 => BsaReaderV103::read_bsa(reader).map(crate::SomeBsaReaderV10X::V103),
-            Version10X::V104 => BsaReaderV104::read_bsa(reader).map(crate::SomeBsaReaderV10X::V104),
-            Version10X::V105 => BsaReaderV105::read_bsa(reader).map(crate::SomeBsaReaderV10X::V105),
+            Version10X::V103 => ReaderV103::read_bsa(reader).map(crate::SomeReaderV10X::V103),
+            Version10X::V104 => ReaderV104::read_bsa(reader).map(crate::SomeReaderV10X::V104),
+            Version10X::V105 => ReaderV105::read_bsa(reader).map(crate::SomeReaderV10X::V105),
         }
     }
 }
@@ -126,16 +127,16 @@ pub enum Version {
     BA2(BA2Type, u32),
 }
 impl Version {
-    pub fn open<P>(&self, path: P) -> io::Result<crate::SomeBsaReader<BufReader<File>>>
+    pub fn open<P>(&self, path: P) -> io::Result<crate::SomeReader<BufReader<File>>>
     where P: AsRef<Path> {
         let file = File::open(path)?;
         let buf = BufReader::new(file);
         self.read_bsa(buf)
     }
-    pub fn read_bsa<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeBsaReader<R>> {
+    pub fn read_bsa<R: Read + Seek>(&self, reader: R) -> io::Result<crate::SomeReader<R>> {
         match self {
-            Version::V001 => BsaReaderV001::read_bsa(reader).map(crate::SomeBsaReader::V001),
-            Version::V10X(v) => v.read_bsa(reader).map(crate::SomeBsaReader::V10X),
+            Version::V001 => ReaderV001::read_bsa(reader).map(crate::SomeReader::V001),
+            Version::V10X(v) => v.read_bsa(reader).map(crate::SomeReader::V10X),
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, UnsupportedVersion(*self))),
         }
     }
