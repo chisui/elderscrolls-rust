@@ -17,20 +17,20 @@ use crate::version::Version10X;
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ArchiveFlagV103 {
-    #[doc = "The game may not load a BSA without this bit set."]
+    /// The game may not load a BSA without this bit set.
     IncludeDirectoryNames = 0x1,
-    #[doc = "The game may not load a BSA without this bit set."]
+    /// The game may not load a BSA without this bit set.
     IncludeFileNames = 0x2,
-    #[doc = "This does not mean all files are compressed. It means they are"]
-    #[doc = "compressed by default."]
+    /// This does not mean all files are compressed. It means they are
+    /// compressed by default.
     CompressedArchive = 0x4,
     RetainDirectoryNames = 0x8,
-    #[doc = "Unknown, but observed being set in official BSA files containing"]
-    #[doc = "sounds (but not voices). Possibly instructs the game to retain"]
-    #[doc = "file names in memory."]
+    /// Unknown, but observed being set in official BSA files containing
+    /// sounds (but not voices). Possibly instructs the game to retain
+    /// file names in memory.
     RetainFileNames = 0x10,
     RetainFileNameOffsets = 0x20,
-    #[doc = "Hash values and numbers after the header are encoded big-endian."]
+    /// Hash values and numbers after the header are encoded big-endian.
     Xbox360Archive = 0x40,
     Ux80  = 0x80,
     Ux100 = 0x100,

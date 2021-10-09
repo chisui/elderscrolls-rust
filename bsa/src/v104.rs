@@ -17,28 +17,31 @@ use crate::version::Version10X;
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ArchiveFlagV104 {
-    #[doc = "The game may not load a BSA without this bit set."]
+    /// The game may not load a BSA without this bit set.
     IncludeDirectoryNames = 0x1,
-    #[doc = "The game may not load a BSA without this bit set."]
+    /// The game may not load a BSA without this bit set.
     IncludeFileNames = 0x2,
-    #[doc = "This does not mean all files are compressed. It means they are"]
-    #[doc = "compressed by default."]
+    /// This does not mean all files are compressed. It means they are
+    /// compressed by default.
     CompressedArchive = 0x4,
     RetainDirectoryNames = 0x8,
+    /// Unknown, but observed being set in official BSA files containing
+    /// sounds (but not voices). Possibly instructs the game to retain
+    /// file names in memory.
     RetainFileNames = 0x10,
     RetainFileNameOffsets = 0x20,
-    #[doc = "Hash values and numbers after the header are encoded big-endian."]
+    /// Hash values and numbers after the header are encoded big-endian.
     Xbox360Archive = 0x40,
     RetainStringsDuringStartup = 0x80,
-    #[doc = "Embed File Names. Indicates the file data blocks begin with a"]
-    #[doc = "bstring containing the full path of the file. For example, in"]
-    #[doc = "\"Skyrim - Textures.bsa\" the first data block is"]
-    #[doc = "$2B textures/effects/fxfluidstreamdripatlus.dds"]
-    #[doc = "($2B indicating the name is 43 bytes). The data block begins"]
-    #[doc = "immediately after the bstring."]
+    /// Embed File Names. Indicates the file data blocks begin with a
+    /// bstring containing the full path of the file. For example, in
+    /// \"Skyrim - Textures.bsa\" the first data block is
+    /// $2B textures/effects/fxfluidstreamdripatlus.dds
+    /// ($2B indicating the name is 43 bytes). The data block begins
+    /// immediately after the bstring.
     EmbedFileNames = 0x100,
-    #[doc = "This can only be used with COMPRESSED_ARCHIVE."]
-    #[doc = "This is an Xbox 360 only compression algorithm."]
+    /// This can only be used with CompressedArchive.
+    /// This is an Xbox 360 only compression algorithm.
     XMemCodec = 0x200,
 }
 
