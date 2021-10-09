@@ -72,7 +72,7 @@ pub struct V001 {}
 pub type BsaWriterV001 = V001;
 impl Default for V001 {
     fn default() -> Self {
-        Self {  }
+        Self {}
     }
 }
 pub struct BsaReaderV001<R> {

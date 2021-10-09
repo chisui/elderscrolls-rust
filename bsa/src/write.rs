@@ -8,8 +8,11 @@ pub struct BsaDirSource<D> {
     pub files: Vec<BsaFileSource<D>>,
 }
 impl<D> BsaDirSource<D> {
-    pub fn new(name: String, files: Vec<BsaFileSource<D>>) -> Self {
-        Self { name, files }
+    pub fn new<N: Into<String>, I: IntoIterator<Item = BsaFileSource<D>>>(name: N, files: I) -> Self {
+        Self {
+            name: name.into(),
+            files: files.into_iter().collect()
+        }
     }
 }
 impl<'a, D> IntoIterator for &'a BsaDirSource<D> {
@@ -27,8 +30,12 @@ pub struct BsaFileSource<D> {
     pub data: D,
 }
 impl<D> BsaFileSource<D> {
-    pub fn new(name: String, data: D) -> Self {
-        Self { name, compressed: None, data}
+    pub fn new<N: Into<String>>(name: N, data: D) -> Self {
+        Self {
+            name: name.into(),
+            compressed: None,
+            data
+        }
     }
 }
 pub trait BsaWriter {
@@ -77,8 +84,8 @@ pub(crate) mod test {
 
     pub fn some_bsa_dirs() -> Vec<BsaDirSource<Vec<u8>>> {
         vec![
-            BsaDirSource::new("a".to_owned(), vec![
-                BsaFileSource::new("b".to_owned(), vec![1,2,3,4])
+            BsaDirSource::new("a", [
+                BsaFileSource::new("b", vec![1,2,3,4])
             ])
         ]
     }

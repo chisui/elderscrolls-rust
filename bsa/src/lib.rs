@@ -23,7 +23,7 @@ pub use crate::version::*;
 pub use crate::read::{open, BsaReader, BsaDir, BsaFile, EntryId};
 pub use crate::write::{BsaDirSource, BsaFileSource, BsaWriter, list_dir};
 pub use crate::v001::{V001, BsaReaderV001, HeaderV001, BsaWriterV001};
-pub use crate::v10x::ToArchiveBitFlags;
+pub use crate::v10x::{ToArchiveBitFlags, FileFlag};
 pub use crate::v103::{V103, BsaReaderV103, HeaderV103, BsaWriterV103, ArchiveFlagV103};
 pub use crate::v104::{V104, BsaReaderV104, HeaderV104, BsaWriterV104, ArchiveFlagV104};
 pub use crate::v105::{V105, BsaReaderV105, HeaderV105, BsaWriterV105, ArchiveFlagV105};

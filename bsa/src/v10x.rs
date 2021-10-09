@@ -399,7 +399,6 @@ pub struct BsaWriterV10X<T, C, AF: BitFlag, RDR> {
     pub archive_flags: BitFlags<AF>,
     pub file_flags: BitFlags<FileFlag>,
 }
-
 impl<T, C, AF, RDR> BsaWriterV10X<T, C, AF, RDR>
 where
     T: Versioned,
@@ -407,6 +406,21 @@ where
     AF: ToArchiveBitFlags,
     RDR: From<DirRecord> + Into<DirRecord> + Writable + Sized + Copy
 {
+    pub fn new<A, F>(archive_flags: A,file_flags: F) -> Self
+    where
+        A: IntoIterator<Item = AF>,
+        F: IntoIterator<Item = FileFlag>,
+    {
+        Self {
+            phantom_af: PhantomData,
+            phantom_rdr: PhantomData,
+            phantom_t: PhantomData,
+            phantom_c: PhantomData,
+            archive_flags: archive_flags.into_iter().collect(),
+            file_flags: file_flags.into_iter().collect(),
+        }
+    }
+
     fn write_version<W: Write + Seek>(mut out: W) -> Result<()> {
         let version = Version::V10X(T::version());
         version.write_fixed(&mut out)
@@ -556,19 +570,15 @@ where
     }
    
 }
-impl<T, C, AF: ToArchiveBitFlags, RDR> Default for BsaWriterV10X<T, C, AF, RDR> {
+impl<T, C, AF, RDR> Default for BsaWriterV10X<T, C, AF, RDR>
+where
+    T: Versioned,
+    C: Compression,
+    AF: ToArchiveBitFlags,
+    RDR: From<DirRecord> + Into<DirRecord> + Writable + Sized + Copy
+{
     fn default() -> Self {
-        let mut archive_flags = BitFlags::empty();
-        archive_flags |= AF::includes_file_names();
-        archive_flags |= AF::includes_dir_names();
-        Self {
-            phantom_af: PhantomData,
-            phantom_rdr: PhantomData,
-            phantom_t: PhantomData,
-            phantom_c: PhantomData,
-            archive_flags,
-            file_flags: BitFlags::empty(),
-        }
+        Self::new([AF::includes_file_names(), AF::includes_dir_names()], [])
     }
 }
 impl<T, C, AF: ToArchiveBitFlags, RDR> From<&BsaWriterV10X<T, C, AF, RDR>> for HeaderV10X<AF> {

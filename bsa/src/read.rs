@@ -1,4 +1,4 @@
-use std::{fmt, fs::File, io::{BufReader, Result, Write}, path::Path, slice::Iter};
+use std::{fmt, fs::File, io::{BufReader, Result, Write}, ops::Index, path::Path, slice::{Iter, SliceIndex}};
 use crate::hash::Hash;
 
 
@@ -27,6 +27,14 @@ impl<'a> IntoIterator for &'a BsaDir {
     type IntoIter = Iter<'a, BsaFile>;
     fn into_iter(self) -> Self::IntoIter {
         self.files.iter()
+    }
+}
+impl<I: SliceIndex<[BsaFile]>> Index<I> for BsaDir {
+    type Output = I::Output;
+
+    #[inline]
+    fn index(&self, index: I) -> &Self::Output {
+        self.files.index(index)
     }
 }
 
