@@ -5,7 +5,7 @@ use clap::Clap;
 use glob::{Pattern, MatchOptions};
 use thiserror::Error;
 
-use bsalib::{self, ArchiveFlagV105, BsaEntry, BsaReader, BsaWriter, BsaWriterV001, BsaWriterV105, EntryId, SomeBsaReader, SomeBsaRoot, Version, list_dir};
+use bsa::{self, ArchiveFlagV105, BsaReader, BsaWriter, BsaWriterV001, BsaWriterV105, EntryId, SomeBsaReader, SomeBsaRoot, Version, list_dir, UnsupportedVersion};
 
 mod cli;
 use crate::cli::{Cmds, Info, List, Extract, Create, OpenOpts, CreateArgs};
@@ -28,7 +28,7 @@ impl Cmd for Cmds {
             Cmds::List(cmd) => cmd.exec(),
             Cmds::Extract(cmd) => cmd.exec(),
             Cmds::Create(cmd) => cmd.exec(),   
-            cmd => Err(Error::new(ErrorKind::Unsupported, format!("{:?}", cmd))),
+            cmd => Err(Error::new(ErrorKind::Unsupported, format!("Command not supported: {}", cmd.name()))),
         }
     }
 }
@@ -54,9 +54,9 @@ impl Cmd for List {
                     for file in dir {
                         if self.attributes {
                             let c = if file.compressed { "c" } else { " " };
-                            println!("{0} {1: >8} {2}/{3}", c, file.size / 1000, dir.id(), file.id());
+                            println!("{0} {1: >8} {2}/{3}", c, file.size / 1000, &dir.id, &file.id);
                         } else {
-                            println!("{0}/{1}", dir.id(), file.id());
+                            println!("{0}/{1}", &dir.id, &file.id);
                         }
                     }
                 }
@@ -64,9 +64,9 @@ impl Cmd for List {
             SomeBsaRoot::V001(files) => {
                 for file in &files {
                     if self.attributes {
-                        println!("  {0: >8} {1}", file.size / 1000, file.id());
+                        println!("  {0: >8} {1}", file.size / 1000, &file.id);
                     } else {
-                        println!("{0}", file.id());
+                        println!("{0}", &file.id);
                     }
                 }
             },
@@ -122,10 +122,10 @@ impl Cmd for Extract {
             SomeBsaRoot::V10X(dirs) => {
                 for dir in dirs {
                     for file in &dir {
-                        let file_path = format!("{}/{}", dir.id(), file.id());
+                        let file_path = format!("{}/{}", &dir.id, &file.id);
                         if matcher.matches(&file_path) {
                             println!("{}", file_path);
-                            let mut out = open_output_file(&self.output, &[dir.id(), file.id()])?;
+                            let mut out = open_output_file(&self.output, &[&dir.id, &file.id])?;
                             bsa.extract(&file, &mut out)?;
                         }
                     }
@@ -133,10 +133,10 @@ impl Cmd for Extract {
             },
             SomeBsaRoot::V001(files) => {
                 for file in files {
-                    let file_path = format!("{}", file.id());
+                    let file_path = format!("{}", &file.id);
                     if matcher.matches(&file_path) {
                         println!("{}", file_path);
-                        let mut out = open_output_file(&self.output, &[file.id()])?;
+                        let mut out = open_output_file(&self.output, &[&file.id])?;
                         bsa.extract(&file, &mut out)?;
                     }
                 }
@@ -151,11 +151,11 @@ fn open(file: &PathBuf, open_opts: &OpenOpts) -> Result<SomeBsaReader<BufReader<
     if let Some(vs) = &open_opts.force_version {
         Version::from(vs).open(file)
     } else {
-        bsalib::open(file)
+        bsa::open(file)
     }
 }
 
-fn open_output_file(out: &PathBuf, ids: &[EntryId]) -> Result<File> {
+fn open_output_file(out: &PathBuf, ids: &[&EntryId]) -> Result<File> {
     let mut path = out.clone();
     for id in ids {
         path.push(as_path(id));
@@ -223,7 +223,7 @@ impl Cmd for Create {
                 }
                 opts.write_bsa(dirs, file)?;
             },
-            v => print!("unsupported version: {}", Version::from(v)),
+            v => return Err(Error::new(ErrorKind::Unsupported, UnsupportedVersion(Version::from(v)))),
         }
         Ok(())
     }

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use clap::{ArgEnum, Clap};
 use glob::Pattern;
-use bsalib::{Version, Version10X, BA2Type};
+use bsa::{Version, Version10X, BA2Type};
 
 
 #[derive(Debug, Clap)]
@@ -21,6 +21,19 @@ pub enum Cmds {
     Merge(Merge),
     #[clap(aliases = &["d", "r", "remove"])]
     Del(Del),
+}
+impl Cmds {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Cmds::Info(_) => "info",
+            Cmds::List(_) => "list",
+            Cmds::Extract(_) => "extract",
+            Cmds::Create(_) => "create",
+            Cmds::Add(_) => "add",
+            Cmds::Merge(_) => "merge",
+            Cmds::Del(_) => "del",
+        }
+    }
 }
 
 /// Print information about an archive file.

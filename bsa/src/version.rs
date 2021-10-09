@@ -23,7 +23,7 @@ pub struct UnknownMagicNumber(u32);
 
 #[derive(Debug, Error)]
 #[error("Unsupported Version {0}")]
-struct UnsupportedVersion(pub Version);
+pub struct UnsupportedVersion(pub Version);
 
 #[derive(Debug, Error)]
 #[error("Unknown version {0}")]

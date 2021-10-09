@@ -7,7 +7,7 @@ use std::{
 use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 
-use crate::{Hash, Version, bin::{Fixed, ReadableFixed, WritableFixed}, read};
+use crate::{EntryId, Hash, Version, bin::{Fixed, ReadableFixed, WritableFixed}, read};
 use crate::bin::{
     Readable, Writable, DataSource, Positioned,
     derive_readable_via_pod, derive_writable_via_pod,
@@ -101,8 +101,10 @@ impl<R: Read + Seek> BsaReaderV001<R> {
                 };
 
                 Ok(BsaFile {
-                    hash,
-                    name: Some(name.to_string()),
+                    id: EntryId {
+                        hash,
+                        name: Some(name.to_string()),
+                    },
                     compressed: false,
                     size: rec.size as usize,
                     offset: offset_after_index(&self.header) + rec.offset as u64,

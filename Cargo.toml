@@ -1,6 +1,6 @@
 [workspace]
 
 members = [
-    "bsalib",
+    "bsa",
     "bsabin",
 ]

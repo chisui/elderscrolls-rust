@@ -17,23 +17,10 @@ impl fmt::Display for EntryId {
     }
 }
 
-pub trait BsaEntry {
-    fn id(&self) -> EntryId;
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BsaDir {
-    pub hash: Hash,
-    pub name: Option<String>,
+    pub id: EntryId,
     pub files: Vec<BsaFile>,
-}
-impl BsaEntry for BsaDir {
-    fn id(&self) -> EntryId {
-        EntryId {
-            hash: self.hash,
-            name: self.name.clone(),
-        }
-    }
 }
 impl<'a> IntoIterator for &'a BsaDir {
     type Item = &'a BsaFile;
@@ -45,19 +32,10 @@ impl<'a> IntoIterator for &'a BsaDir {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BsaFile {
-    pub hash: Hash,
-    pub name: Option<String>,
+    pub id: EntryId,
     pub compressed: bool,
     pub offset: u64,
     pub size: usize,
-}
-impl BsaEntry for BsaFile {
-    fn id(&self) -> EntryId {
-        EntryId {
-            hash: self.hash,
-            name: self.name.clone(),
-        }
-    }
 }
 
 

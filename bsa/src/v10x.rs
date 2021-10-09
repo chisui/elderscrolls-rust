@@ -10,7 +10,7 @@ use enumflags2::{bitflags, BitFlags, BitFlag};
 use crate::bin::{self, DataSource, Fixed, Positioned, Readable, ReadableFixed, ReadableParam, VarSize, Writable, WritableFixed, derive_readable_via_pod, derive_writable_via_pod, read_struct};
 use crate::compress::Compression;
 use crate::str::{BZString, BString, ZString};
-use crate::Hash;
+use crate::{EntryId, Hash};
 use crate::version::{Version, Version10X, MagicNumber};
 use crate::read::{BsaReader, BsaDir, BsaFile};
 use crate::write::{BsaWriter, BsaDirSource, BsaFileSource};
@@ -220,9 +220,11 @@ where
         let dir_content = DirContentRecord::read_with_param(&mut self.reader, (has_dir_name, dir.file_count))?;
 
         Ok(BsaDir {
-            hash: dir.name_hash,
-            name: dir_content.name
-                .map(|n| n.to_string()),
+            id: EntryId {
+                hash: dir.name_hash,
+                name: dir_content.name
+                    .map(|n| n.to_string()),
+            },
             files: dir_content.files.iter()
                 .map(|file| self.to_file(&file_names, file))
                 .collect(),
@@ -237,9 +239,11 @@ where
         };
 
         BsaFile {
-            hash: file.name_hash,
-            name: file_names.get(&file.name_hash)
-                .map(|n| n.to_string()),
+            id: EntryId {
+                hash: file.name_hash,
+                name: file_names.get(&file.name_hash)
+                    .map(|n| n.to_string()),
+            },
             compressed,
             offset: file.offset as u64,
             size: file.real_size() as usize,

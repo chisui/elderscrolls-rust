@@ -10,7 +10,7 @@ let
     rustToolChain = ./rust-toolchain;
   };
 in mkShell {
-  name = "bsa";
+  name = "elderscrolls-rust";
   buildInputs = [
     (rust-channel.rust.override {
       extensions = [

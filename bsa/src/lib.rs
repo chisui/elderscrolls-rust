@@ -19,8 +19,8 @@ use bin::ReadableFixed;
 use thiserror::Error;
 
 pub use crate::hash::Hash;
-pub use crate::version::{Version, Version10X, BA2Type};
-pub use crate::read::{open, BsaReader, BsaDir, BsaFile, BsaEntry, EntryId};
+pub use crate::version::*;
+pub use crate::read::{open, BsaReader, BsaDir, BsaFile, EntryId};
 pub use crate::write::{BsaDirSource, BsaFileSource, BsaWriter, list_dir};
 pub use crate::v001::{V001, BsaReaderV001, HeaderV001, BsaWriterV001};
 pub use crate::v10x::ToArchiveBitFlags;
