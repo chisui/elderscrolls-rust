@@ -17,8 +17,3 @@ where S: Pod, R: Read {
         Ok(val)
     }
 }
-
-pub trait Readable<'a, T> 
-where T: Sized {
-    fn read_val(&'a mut self) -> Result<T>; 
-}
