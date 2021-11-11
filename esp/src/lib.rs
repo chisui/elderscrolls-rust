@@ -4,27 +4,30 @@
 mod bin;
 mod record;
 
-pub use crate::record::{EntryType, RecordType, GenericRecord};
+pub use crate::record::*;
 
 
 #[cfg(test)]
 pub(crate) mod test {
-    use std::{fs::File, io::Result};
-    use crate::bin::{Readable, ReadableParam};
+    use std::fs::File;
+    use std::io::Result;
 
     use super::*;
 
     #[test]
     fn load_unoffical_patch() -> Result<()> {
-        let mut f = File::open("../test-data/unofficialSkyrimSEpatch.esp")?;
+        let f = File::open("../test-data/unofficialSkyrimSEpatch.esp")?;
 
-        let t = EntryType::read_bin(&mut f)?;
-        println!("{:?}", t);
-        if let EntryType::Record(rt) = t {
-            let r = GenericRecord::read_with_param(&mut f, rt)?;
-            println!("{:#?}", r);
+        for entry in crate::read(f)? {
+            match entry {
+                Entry::Record(r) => {
+                    println!("Record: {}", r.record_type);
+                },
+                Entry::Group(g) => {
+                    println!("Group: {}", g.label);
+                }
+            }
         }
-
         Ok(())
     }
 }
