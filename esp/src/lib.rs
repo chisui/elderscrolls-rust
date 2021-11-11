@@ -16,13 +16,17 @@ pub(crate) mod test {
 
     #[test]
     fn load_unoffical_patch() -> Result<()> {
-        let f = File::open("../test-data/unofficialSkyrimSEpatch.esp")?;
-        let mut reader = EspReader::new(f);
+        let mut f = File::open("../test-data/unofficialSkyrimSEpatch.esp")?;
 
-        for entry in reader.top_level_entries()? {
+        let mut entries = crate::entries(&mut f)?;
+        while let Some(entry) = entries.next_entry()?  {
             match entry {
                 Entry::Record(r) => {
                     println!("Record: {}", r.record_type);
+                    let mut fields = r.fields();
+                    while let Some(field) = fields.next_field()? {
+                        println!("  {}", field.field_type);
+                    }
                 },
                 Entry::Group(g) => {
                     println!("Group: {}", g.group_info.label);

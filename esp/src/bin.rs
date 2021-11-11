@@ -3,13 +3,22 @@ use std::io::{Read, Result};
 use bytemuck::Pod;
 
 
-pub fn read_struct<S: Pod, R: Read>(reader: &mut R) -> Result<S> {
-    let mut val = S::zeroed();
-    let slice = bytemuck::bytes_of_mut(&mut val);
-    reader.read_exact(slice)?;
-    Ok(val)
+pub trait ReadStructExt<S>
+where S: Sized {
+    fn read_struct(&mut self) -> Result<S>;
 }
 
-pub trait Readable<R>: Sized {
-    fn read(reader: &mut R) -> Result<Self>; 
+impl<S, R> ReadStructExt<S> for R
+where S: Pod, R: Read {
+    fn read_struct(&mut self) -> Result<S> {
+        let mut val = S::zeroed();
+        let slice = bytemuck::bytes_of_mut(&mut val);
+        self.read_exact(slice)?;
+        Ok(val)
+    }
+}
+
+pub trait Readable<'a, T> 
+where T: Sized {
+    fn read_val(&'a mut self) -> Result<T>; 
 }

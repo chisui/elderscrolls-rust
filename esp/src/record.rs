@@ -4,43 +4,35 @@ use std::{fmt, str};
 
 use bytemuck::{Pod, Zeroable};
 
-use crate::bin::{Readable, read_struct};
+use crate::bin::{Readable, ReadStructExt};
 
 
-#[derive(Debug, Clone)]
-pub struct EspReader<R> {
-    reader: R,
-    top_level_entries: Option<Vec<Entry>>,
+pub fn entries<'a, R>(reader: &'a mut R) -> Result<Entries<'a, R>>
+where R: Read + Seek {
+    let end = reader.stream_len()?;
+    Ok(Entries {
+        reader,
+        current: 0,
+        end,
+    })
 }
-impl<R: Read + Seek> EspReader<R> {
-    pub fn new(reader: R) -> Self {
-        Self {
-            reader,
-            top_level_entries: None,
-        }
-    }
 
-    pub fn top_level_entries(&mut self) -> Result<&Vec<Entry>> {
-        if None == self.top_level_entries {
-            let size = self.reader.stream_len()?;
-            let e = self.read_entris(0, size)?;
-            self.top_level_entries = Some(e.to_vec());
+pub struct Entries<'a, R> {
+    reader: &'a mut R,
+    current: u64,
+    end: u64,
+}
+impl<'a, R> Entries<'a, R>
+where R: Read + Seek {
+    pub fn next_entry(&'a mut self) -> Result<Option<Entry<'a, R>>> {
+        if self.current < self.end {
+            self.reader.seek(SeekFrom::Start(self.current))?;
+            let (entry, next) = read_entry(self.reader)?;
+            self.current = next;
+            Ok(Some(entry))
+        } else {
+            Ok(None)
         }
-        Ok(&self.top_level_entries.as_ref()
-            .unwrap())
-    }
-
-    fn read_entris(&mut self, start: u64, size: u64) -> Result<Vec<Entry>> {
-        let end = start + size;
-        let mut pos = self.reader.seek(SeekFrom::Start(start))?;
-        let mut entries = Vec::new();
-        while pos < end {
-            let entry = Entry::read(&mut self.reader)?;
-            self.reader.seek(SeekFrom::Current(entry.data_size() as i64))?;
-            entries.push(entry);
-            pos = self.reader.stream_position()?;
-        }
-        Ok(entries)
     }
 }
 
@@ -52,9 +44,10 @@ impl Label {
         str::from_utf8(&self.0).ok()
     }
 }
-impl<R: Read> Readable<R> for Label {
-    fn read(reader: &mut R) -> Result<Self> {
-        read_struct(reader)
+impl<'a, R> Readable<'a, Label> for R
+where R: Read {
+    fn read_val(&mut self) -> Result<Label> {
+        self.read_struct()
     }
 }
 impl fmt::Display for Label {
@@ -78,12 +71,12 @@ pub struct VersionControlInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Zeroable, Pod)]
 pub struct Timestamp(u16);
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Entry {
-    Record(Record),
-    Group(Group),
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Entry<'a, R> {
+    Record(Record<'a, R>),
+    Group(Group<'a, R>),
 }
-impl Entry {
+impl<'a, R> Entry<'a, R> {
     pub fn data_size(&self) -> u64 {
         match self {
             Entry::Record(r) => r.data_size as u64,
@@ -91,21 +84,22 @@ impl Entry {
         }
     }
 }
-impl<R: Read + Seek> Readable<R> for Entry {
-    fn read(reader: &mut R) -> Result<Self> {
-        let l= read_struct(reader)?;
-        if l == Label(*b"GRUP") {
-            Group::read(reader)
-                .map(Entry::Group)
-        } else {
-            Record::read_after_label(reader, l)
-                .map(Entry::Record)
-        }
-    }    
+
+fn read_entry<'a, R>(reader: &'a mut R) -> Result<(Entry<'a, R>, u64)>
+where R: Read + Seek {
+    let l= reader.read_struct()?;
+    if l == Label(*b"GRUP") {
+        let (g, next) = read_group(reader)?;
+        Ok((Entry::Group(g), next))
+    } else {
+        let (r, next) = read_record_after_label(reader, l)?;
+        Ok((Entry::Record(r), next))
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Record {
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Record<'a, R> {
+    reader: &'a mut R,
     position: u64,
     data_size: u32,
     pub record_type: Label,
@@ -114,8 +108,39 @@ pub struct Record {
     pub timestamp: Timestamp,
     pub version_control_info: VersionControlInfo,
     pub internal_version: u16,
-    fields: Option<Vec<Field>>,
 }
+
+impl<'a, R> Record<'a, R>
+where R: Read + Seek {
+    pub fn fields(&'a self) -> Fields<'a, R> {
+        let current = self.position + TOTAL_Record_HEADER_SIZE as u64;
+        Fields {
+            reader: self.reader,
+            current,
+            end: current + self.data_size as u64,
+        }
+    }
+}
+
+pub struct Fields<'a, R> {
+    reader: &'a mut R,
+    current: u64,
+    end: u64,
+}
+impl<'a, R> Fields<'a, R>
+where R: Read + Seek {
+    pub fn next_field(&'a mut self) -> Result<Option<Field<'a, R>>> {
+        if self.current < self.end {
+            self.reader.seek(SeekFrom::Start(self.current))?;
+            let (field, next) = read_field(self.reader)?;
+            self.current = next;
+            Ok(Some(field))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
 struct RecordHeader {
@@ -127,42 +152,42 @@ struct RecordHeader {
     internal_version: u16,
     _unknown: u16,
 }
-impl Record {
-    fn read_after_label<R: Read + Seek>(reader: &mut R, record_type: Label) -> Result<Self> {
-        let position = reader.stream_position()? - size_of::<Label>() as u64;
-        let RecordHeader {
-            data_size,
-            flags,
-            id,
-            timestamp,
-            version_control_info,
-            internal_version,
-            ..
-        } = read_struct(reader)?;
+fn read_record_after_label<'a, R>(reader: &'a mut R, record_type: Label) -> Result<(Record<'a, R>, u64)>
+where R: Read + Seek {
+    let position = reader.stream_position()? - size_of::<Label>() as u64;
+    let RecordHeader {
+        data_size,
+        flags,
+        id,
+        timestamp,
+        version_control_info,
+        internal_version,
+        ..
+    } = reader.read_struct()?;
+    let next = position + data_size as u64;
 
-        Ok(Record {
-            data_size,
-            position,
+    Ok((Record {
+        reader,
+        data_size,
+        position,
 
-            record_type,
-            flags,
-            id,
-            timestamp,
-            version_control_info,
-            internal_version,
-            fields: None,
-        })
-    }
+        record_type,
+        flags,
+        id,
+        timestamp,
+        version_control_info,
+        internal_version,
+    }, next))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Group {
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Group<'a, R> {
+    reader: &'a mut R,
     data_size: u32,
     position: u64,
     pub group_info: GroupInfo,
     pub timestamp: Timestamp,
     pub version_control_info: VersionControlInfo,
-    members: Option<Vec<Entry>>,
 }
 
 #[repr(C)]
@@ -183,35 +208,40 @@ struct GroupHeader {
 const TOTAL_GROUP_HEADER_SIZE: usize
     = size_of::<Label>()
     + size_of::<GroupHeader>();
-impl<R: Read + Seek> Readable<R> for Group {
-    fn read(reader: &mut R) -> Result<Self> {
-        let position = reader.stream_position()? - size_of::<Label>() as u64;
-        let GroupHeader {
-            data_size,
-            group_info,
-            timestamp,
-            version_control_info,
-            ..
-        } = read_struct(reader)?;
 
-        Ok(Group {
-            data_size: data_size - TOTAL_GROUP_HEADER_SIZE as u32,
-            position,
+const TOTAL_Record_HEADER_SIZE: usize
+    = size_of::<Label>()
+    + size_of::<RecordHeader>();
 
-            group_info,
-            timestamp,
-            version_control_info,
-            members: None,
-        })
-    }
+fn read_group<'a, R>(reader: &'a mut R) -> Result<(Group<'a, R>, u64)>
+where R: Read + Seek {
+    let position = reader.stream_position()? - size_of::<Label>() as u64;
+    let GroupHeader {
+        data_size,
+        group_info,
+        timestamp,
+        version_control_info,
+        ..
+    } = reader.read_struct()?;
+    let effective_data_size = data_size - TOTAL_GROUP_HEADER_SIZE as u32;
+    let next = position - effective_data_size as u64;
+    Ok((Group {
+        reader,
+        data_size: effective_data_size,
+        position,
+
+        group_info,
+        timestamp,
+        version_control_info,
+    }, next))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Field {
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Field<'a, R> {
+    reader: &'a mut R,
     pub field_type: Label,
     data_position: u64,
     data_size: u32,
-    data: Option<Vec<u8>>,
 }
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -219,22 +249,22 @@ struct FieldHeader {
     field_type: Label,
     data_size: u16,
 }
-impl<R: Read + Seek> Readable<R> for Field {
-    fn read(reader: &mut R) -> Result<Self> {
-        let header0: FieldHeader = read_struct(reader)?;
-        let mut field_type = header0.field_type;
-        let mut data_size = header0.data_size as u32;
-        if field_type == Label(*b"XXXX") {
-            data_size = read_struct(reader)?;
-            let header1: FieldHeader = read_struct(reader)?;
-            field_type = header1.field_type;
-        };
-        let data_position = reader.stream_position()?;
-        Ok(Field {
-            field_type,
-            data_position,
-            data_size,
-            data: None,
-        })
-    }
+
+fn read_field<'a, R>(reader: &'a mut R) -> Result<(Field<'a, R>, u64)>
+where R: Read + Seek {
+    let header0: FieldHeader = reader.read_struct()?;
+    let mut field_type = header0.field_type;
+    let mut data_size = header0.data_size as u32;
+    if field_type == Label(*b"XXXX") {
+        data_size = reader.read_struct()?;
+        let header1: FieldHeader = reader.read_struct()?;
+        field_type = header1.field_type;
+    };
+    let data_position = reader.stream_position()?;
+    Ok((Field {
+        reader,
+        field_type,
+        data_position,
+        data_size,
+    }, data_position + data_size as u64))
 }
