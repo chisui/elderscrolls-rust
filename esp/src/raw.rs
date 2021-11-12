@@ -1,7 +1,8 @@
 use std::mem::size_of;
-use std::io::{Read, Seek, SeekFrom, Result};
+use std::io::{self, Read, Seek, SeekFrom, Result};
 use std::{fmt, str};
 
+use thiserror::Error;
 use bytemuck::{Pod, Zeroable};
 
 use crate::bin::ReadStructExt;
@@ -129,21 +130,54 @@ where R: Read + Seek {
         self.reader.read_exact(&mut data)?;
         Ok(data)
     }
+
+    pub fn cast_content<P: Pod>(&mut self, field: &Field) -> Result<P> {
+        if size_of::<P>() != field.data_size as usize {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, 
+                CastError::Size(size_of::<P>(), field.data_size as usize)))
+        }
+        self.reader.seek(SeekFrom::Start(field.data_position))?;
+        self.reader.read_struct()
+    }
+
+    pub fn cast_all_content<P: Pod>(&mut self, field: &Field) -> Result<Vec<P>> {
+        if field.data_size as usize % size_of::<P>() != 0 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, 
+                CastError::Size(size_of::<P>(), field.data_size as usize)))
+        }
+        self.reader.seek(SeekFrom::Start(field.data_position))?;
+        let mut vec = Vec::new();
+        for _ in 0 .. (field.data_size as usize / size_of::<P>()) {
+            vec.push(self.reader.read_struct()?);
+        }
+        Ok(vec)
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum CastError {
+    #[error("Expected {0} bytes but got {1}")]
+    Size(usize, usize),
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Zeroable, Pod)]
-pub struct Label([u8; 4]);
+pub struct Label(pub [u8; 4]);
 impl Label {
     pub fn as_str(&self) -> Option<&str> {
         str::from_utf8(&self.0).ok()
+    }
+}
+impl AsRef<[u8; 4]> for Label {
+    fn as_ref(&self) -> &[u8; 4] {
+        &self.0
     }
 }
 impl fmt::Display for Label {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.as_str() {
             Some(s) => f.write_str(s),
-            None => write!(f, "{:?}", self.0),
+            None => write!(f, "0x{:x}", u32::from_le_bytes(self.0)),
         }
     }
 }
@@ -215,6 +249,12 @@ pub struct GroupInfo {
     pub label: Label,
     pub group_type: u32,
 }
+impl fmt::Display for GroupInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}${:x}", self.group_type, u32::from_le_bytes(self.label.0))
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
 struct GroupHeader {
@@ -239,4 +279,37 @@ pub struct Field {
 struct FieldHeader {
     field_type: Label,
     data_size: u16,
+}
+
+
+#[cfg(test)]
+pub(crate) mod test {
+    use std::fs::File;
+    use std::io::Result;
+
+    use super::*;
+
+    #[test]
+    fn load_unoffical_patch() -> Result<()> {
+        let f = File::open("../test-data/unofficialSkyrimSEpatch.esp")?;
+        let mut reader = EspReader::new(f);
+
+        let entries = reader.top_level_entries()?;
+
+        for entry in entries {
+            match entry {
+                Entry::Record(r) => {
+                    println!("Record: {}", r.record_type);
+                    let fields = reader.fields(&r)?;
+                    for field in fields {
+                        println!("  {}", field.field_type);
+                    }
+                },
+                Entry::Group(g) => {
+                    println!("Group: {}", g.group_info.label);
+                }
+            }
+        }
+        Ok(())
+    }
 }
