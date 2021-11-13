@@ -3,7 +3,7 @@ use std::io::{self, Read, Seek};
 use std::str::{self, FromStr, Utf8Error};
 use std::fmt;
 
-use strum;
+use strum::{self, EnumMessage};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 use bytemuck::{Pod, PodCastError, Zeroable};
@@ -12,25 +12,32 @@ use crate::raw;
 
 
 #[derive(Debug, Clone, Default)]
-pub struct EntryPath(pub Vec<raw::GroupInfo>);
-impl EntryPath {
-    fn append(&self, a: raw::GroupInfo) -> Self {
+pub struct GroupPath(pub Vec<raw::GroupInfo>);
+impl GroupPath {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+    pub fn append(&self, a: raw::GroupInfo) -> Self {
         let mut p = self.0.clone();
         p.push(a);
         Self(p)
     }
-    fn record(&self, a: raw::Label) -> RecordPath {
+    pub fn record(&self, a: raw::Label) -> RecordPath {
         RecordPath(self.clone(), a)
     }
+    pub fn err<E>(&self, e: E) -> EspError
+    where E: Into<GroupError> {
+        EspError::Group(self.clone(), e.into())
+    }
 }
-impl fmt::Display for EntryPath {
+impl fmt::Display for GroupPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for grp in self.0.iter() {
             write!(f, "/")?;
             if let Ok(grpi) = GroupInfo::try_from(grp) {
-                grpi.fmt(f)?;
+                write!(f, "{}", grpi)?;
             } else {
-                grp.fmt(f)?;
+                write!(f, "{}", grp)?;
             }
         }
         Ok(())
@@ -38,10 +45,14 @@ impl fmt::Display for EntryPath {
 }
 
 #[derive(Debug, Clone)]
-pub struct RecordPath(EntryPath, raw::Label);
+pub struct RecordPath(GroupPath, raw::Label);
 impl RecordPath {
-    fn field(&self, f: raw::Label) -> FieldPath {
+    pub fn field(&self, f: raw::Label) -> FieldPath {
         FieldPath(self.clone(), f)
+    }
+    pub fn err<E>(&self, e: E) -> EspError
+    where E: Into<RecordError> {
+        EspError::Record(self.clone(), e.into())
     }
 }
 impl fmt::Display for RecordPath {
@@ -52,6 +63,12 @@ impl fmt::Display for RecordPath {
 
 #[derive(Debug, Clone)]
 pub struct FieldPath(pub RecordPath, pub raw::Label);
+impl FieldPath {
+    pub fn err<E>(&self, e: E) -> EspError
+    where E: Into<FieldError> {
+        EspError::Field(self.clone(), e.into())
+    }
+}
 impl fmt::Display for FieldPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}", self.0, self.1)
@@ -60,7 +77,7 @@ impl fmt::Display for FieldPath {
 
 #[derive(Debug, Error)]
 pub enum EspError {
-    #[error("{0}: {1}")] Group(EntryPath, GroupError),
+    #[error("{0}: {1}")] Group(GroupPath, GroupError),
     #[error("{0}: {1}")] Record(RecordPath, RecordError),
     #[error("{0}: {1}")] Field(FieldPath, FieldError),
 }
@@ -125,30 +142,30 @@ where R: Read + Seek {
         let mut tes4 = None;
         let mut groups = Vec::new();
 
-        let entry_path = EntryPath::default();
+        let group_path = GroupPath::empty();
         for entry in reader.top_level_entries()
-                .map_err(|err| EspError::Group(entry_path.clone(), err.into()))? {
+                .map_err(|err| group_path.err(err))? {
             match entry {
                 raw::Entry::Record(r) => {
                     if r.record_type == raw::Label(*b"TES4") {
                         if tes4 == None {
-                            let rec = TES4::read_rec(&mut reader, &entry_path, &r)?;
+                            let rec = TES4::read_rec(&mut reader, &group_path, &r)?;
                             tes4 = Some(rec);
                         } else {
-                            return Err(EspError::Group(entry_path.clone(), GroupError::RecordDuplicate(RecordType::TES4)));
+                            return Err(group_path.err(GroupError::RecordDuplicate(RecordType::TES4)));
                         }
                     } else {
-                        return Err(EspError::Group(entry_path.clone(), GroupError::RecordUnexpected(r.record_type)));
+                        return Err(group_path.err(GroupError::RecordUnexpected(r.record_type)));
                     }
                 },
                 raw::Entry::Group(g) => {
                     let info = GroupInfo::try_from(&g.group_info)
-                        .map_err(|err| EspError::Group(entry_path.clone(), GroupError::BadGroupInfo(err)))?;
+                        .map_err(|err| group_path.err(GroupError::BadGroupInfo(err)))?;
                     if let GroupInfo::TopLevel(rec) = info {
                         let tlg = TopLevelGroup::read_group(&mut reader, rec, &g)?;
                         groups.push(tlg);
                     } else {
-                        return Err(EspError::Group(entry_path.clone(), GroupError::GroupUnexpected(info.group_type())));
+                        return Err(group_path.err(GroupError::GroupUnexpected(info.group_type())));
                     }
                 },
             }
@@ -156,7 +173,7 @@ where R: Read + Seek {
 
         Ok(Self {
             reader,
-            tes4: tes4.ok_or(EspError::Group(entry_path, GroupError::RecordMissing(RecordType::TES4)))?,
+            tes4: tes4.ok_or(group_path.err(GroupError::RecordMissing(RecordType::TES4)))?,
             groups,
         })
     }
@@ -401,6 +418,11 @@ impl TopLevelGroup {
         })
     }
 }
+impl Group for TopLevelGroup {
+    fn group_info(&self) -> GroupInfo {
+        GroupInfo::TopLevel(self.record_type)
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Zeroable, Pod)]
@@ -411,6 +433,7 @@ pub struct ObjectId(u32);
     strum::IntoStaticStr, strum::EnumString, strum::Display, strum::EnumMessage
 )]
 pub enum RecordType {
+    #[strum(message = "Action")]
     AACT,
     #[strum(message = "Actor Reference")]
     ACHR,
@@ -653,6 +676,11 @@ pub enum RecordType {
     #[strum(message = "Weather")]
     WTHR,
 }
+impl RecordType {
+    pub fn description(&self) -> &'static str {
+        self.get_message().unwrap()
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum RecordTypeError {
@@ -674,6 +702,13 @@ impl TryFrom<raw::Label> for RecordType {
     }
 }
 
+pub trait Record {
+    fn record_type(&self) -> RecordType;
+}
+pub trait Group {
+    fn group_info(&self) -> GroupInfo;
+}
+
 #[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
 pub struct TES4 {
     pub version: f32,
@@ -686,7 +721,11 @@ pub struct TES4 {
     pub tagifiable_strings_len: u32,
     pub increment: Option<u32>,
 }
-
+impl Record for TES4 {
+    fn record_type(&self) -> RecordType {
+        RecordType::TES4
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -696,15 +735,15 @@ struct HEDR {
     next_object_id: ObjectId,
 }
 impl TES4 {
-    fn read_rec<R: Read + Seek>(reader: &mut raw::EspReader<R>, entry_path: &EntryPath, rec: &raw::Record) -> EspRes<Self> {
+    fn read_rec<R: Read + Seek>(reader: &mut raw::EspReader<R>, group_path: &GroupPath, rec: &raw::Record) -> EspRes<Self> {
         let mut tes4 = TES4::default();
         let mut last_mast: Option<String> = None;
-        let rec_path = entry_path.record(rec.record_type);
+        let rec_path = group_path.record(rec.record_type);
 
         for field in reader.fields(rec)
-                .map_err(|err| EspError::Record(rec_path.clone(), err.into()))? {
+                .map_err(|err| rec_path.err(err))? {
             let field_path = rec_path.field(field.field_type);
-            let to_err = |err: io::Error| EspError::Field(field_path.clone(), err.into());
+            let to_err = |err: io::Error| field_path.err(err);
             match field.field_type.as_str() {
                 Some("HEDR") => {
                     let HEDR {
@@ -738,7 +777,7 @@ impl TES4 {
                             size,
                         });
                     } else {
-                        return Err(EspError::Record(rec_path, RecordError::UnexpectedField(field.field_type)));
+                        return Err(rec_path.err(RecordError::UnexpectedField(field.field_type)));
                     }
                     last_mast = None;
                 },
@@ -758,7 +797,7 @@ impl TES4 {
                         .map(Option::Some)?;
                     last_mast = None;
                 },
-                _ => return Err(EspError::Record(rec_path, RecordError::UnexpectedField(field.field_type))),
+                _ => return Err(rec_path.err(RecordError::UnexpectedField(field.field_type))),
             }
         }
 
@@ -768,9 +807,9 @@ impl TES4 {
 
 fn zstring_content<R: Read + Seek>(reader: &mut raw::EspReader<R>, path: &FieldPath, field: &raw::Field) -> EspRes<String> {
     let bytes = reader.content(&field)
-        .map_err(|err| EspError::Field(path.clone(), err.into()))?;
+        .map_err(|err| path.err(err))?;
     let s = str::from_utf8(&bytes[0 .. bytes.len() - 1])
-        .map_err(|err| EspError::Field(path.clone(), err.into()))?;
+        .map_err(|err| path.err(err))?;
     Ok(s.to_owned())
 }
 
@@ -786,8 +825,6 @@ pub(crate) mod test {
     use std::fs::File;
     use std::io::Result;
 
-    use strum::EnumMessage;
-
     use super::*;
 
     #[test]
@@ -797,7 +834,7 @@ pub(crate) mod test {
             Ok(f) => {
                 println!("{:?}", f.header().author);
                 for group in f.top_level_groups() {
-                    println!("{:?}: {}", group.record_type, group.record_type.get_message().unwrap());
+                    println!("{}: {}", group.group_info(), group.record_type.description());
                 }
                 Ok(())
             },
