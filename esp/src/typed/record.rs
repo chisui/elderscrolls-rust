@@ -8,6 +8,7 @@ use bytemuck::PodCastError;
 use thiserror::Error;
 
 use crate::raw;
+use crate::typed::types::StringError;
 
 
 pub trait Record: Sized {
@@ -19,26 +20,6 @@ pub trait Record: Sized {
 pub fn unwarp_field<A>(opt: Option<A>, l: &[u8; 4]) -> Result<A, RecordError> {
     opt.ok_or(RecordError::MissingField(raw::Label(*l)))
 }
-
-#[derive(Debug, Error)]
-pub enum StringError {
-    #[error("{0}")] IO(#[from] io::Error),
-    #[error("{0}")] Utf8(#[from] str::Utf8Error),
-}
-impl From<StringError> for FieldError {
-    fn from(err: StringError) -> Self {
-        match err {
-            StringError::IO(e) => Self::from(e),
-            StringError::Utf8(e) => Self::from(e),
-        }
-    }
-}
-pub fn zstring_content<R: Read + Seek>(reader: &mut raw::EspReader<R>, field: &raw::Field) -> Result<String, StringError> {
-    let bytes = reader.content(&field)?;
-    let s = str::from_utf8(&bytes[0 .. bytes.len() - 1])?;
-    Ok(s.to_owned())
-}
-
 
 #[derive(Debug, Error)]
 pub enum RecordError {
@@ -63,6 +44,14 @@ pub enum FieldError {
         actual: usize,
         expected: usize,
     },
+}
+impl From<StringError> for FieldError {
+    fn from(err: StringError) -> Self {
+        match err {
+            StringError::IO(e) => Self::from(e),
+            StringError::Utf8(e) => Self::from(e),
+        }
+    }
 }
 impl<A> From<TryFromPrimitiveError<A>> for FieldError
 where

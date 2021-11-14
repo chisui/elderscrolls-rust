@@ -1,9 +1,8 @@
-use std::io::Read;
-use std::io::Seek;
+use std::io::{Read, Seek};
 
 use crate::raw;
 
-use crate::typed::record::{FieldError, Record, RecordError, RecordType, unwarp_field, zstring_content};
+use crate::typed::record::{FieldError, Record, RecordError, RecordType, unwarp_field};
 use crate::typed::types::{Color, EditorID};
 
 
@@ -21,13 +20,13 @@ impl KYWD {
                 if key.is_some() {
                     Err(FieldError::Duplicate)
                 } else {
-                    let s = zstring_content(reader, &field)?;
-                    Ok((Some(EditorID(s)), value))
+                    let data = reader.content(&field)?;
+                    Ok((Some(data), value))
                 }
             },
             Some("CNAM") => {
-                let color = reader.cast_content(&field)?;
-                Ok((key, Some(color)))
+                let data = reader.content(&field)?;
+                Ok((key, Some(data)))
             },
             _ => Err(FieldError::Unexpected)?,
         }

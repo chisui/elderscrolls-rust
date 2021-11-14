@@ -8,7 +8,7 @@ use enumflags2::{bitflags, BitFlags};
 
 use crate::raw;
 
-use super::record::{FieldError, Record, RecordError, RecordType, unwarp_field, zstring_content};
+use super::record::{FieldError, Record, RecordError, RecordType, unwarp_field};
 use super::types::{Color, EditorID, Path};
 
 
@@ -126,44 +126,44 @@ impl TXST {
         
         match field.field_type.as_str() {
             Some("EDID") => {
-                let s = zstring_content(reader, &field)?;
-                tmp.id = Some(EditorID(s));
+                let data = reader.content(&field)?;
+                tmp.id = Some(data);
             },
             Some("OBND") => {
                 let obnd = reader.cast_content(&field)?;
                 tmp.obnd = Some(obnd);
             },
             Some("TX00") => {
-                let tx = zstring_content(reader, &field)?;
-                tmp.color = Some(Path::new(tx));
+                let data = reader.content(&field)?;
+                tmp.color = Some(data);
             },
             Some("TX01") => {
-                let tx = zstring_content(reader, &field)?;
-                tmp.normal = Some(Path::new(tx));
+                let data = reader.content(&field)?;
+                tmp.normal = Some(data);
             },
             Some("TX02") => {
-                let tx = zstring_content(reader, &field)?;
-                tmp.mask = Some(Path::new(tx));
+                let data = reader.content(&field)?;
+                tmp.mask = Some(data);
             },
             Some("TX03") => {
-                let tx = zstring_content(reader, &field)?;
-                tmp.tone_or_glow = Some(Path::new(tx));
+                let data = reader.content(&field)?;
+                tmp.tone_or_glow = Some(data);
             },
             Some("TX04") => {
-                let tx = zstring_content(reader, &field)?;
-                tmp.detail = Some(Path::new(tx));
+                let data = reader.content(&field)?;
+                tmp.detail = Some(data);
             },
             Some("TX05") => {
-                let tx = zstring_content(reader, &field)?;
-                tmp.env = Some(Path::new(tx));
+                let data = reader.content(&field)?;
+                tmp.env = Some(data);
             },
             Some("TX06") => {
-                let tx = zstring_content(reader, &field)?;
-                tmp.multilayer = Some(Path::new(tx));
+                let data = reader.content(&field)?;
+                tmp.multilayer = Some(data);
             },
             Some("TX07") => {
-                let tx = zstring_content(reader, &field)?;
-                tmp.specular = Some(Path::new(tx));
+                let data = reader.content(&field)?;
+                tmp.specular = Some(data);
             },
             Some("DODT") => {
                 let raw_decl: RawDecalData = reader.cast_content(&field)?;

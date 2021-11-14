@@ -8,6 +8,7 @@ mod types;
 mod group;
 mod record;
 mod tes4;
+mod clas;
 mod gmst;
 mod glob;
 mod txst;
@@ -16,6 +17,7 @@ use crate::typed::error::*;
 use crate::typed::group::*;
 use crate::typed::record::Record;
 use crate::typed::tes4::TES4;
+use crate::typed::clas::CLAS;
 use crate::typed::gmst::GMST;
 use crate::typed::glob::GLOB;
 use crate::typed::txst::TXST;
@@ -83,6 +85,7 @@ pub enum SomeRecord {
     KYWD(KYWD),
     TXST(TXST),
     GLOB(GLOB),
+    CLAS(CLAS),
     Other(RecordType, raw::Record),
 }
 impl Record for SomeRecord {
@@ -93,6 +96,7 @@ impl Record for SomeRecord {
             SomeRecord::KYWD(_) => RecordType::KYWD,
             SomeRecord::TXST(_) => RecordType::TXST,
             SomeRecord::GLOB(_) => RecordType::GLOB,
+            SomeRecord::CLAS(_) => RecordType::CLAS,
             SomeRecord::Other(t, _) => *t,
         }
     }
@@ -109,6 +113,8 @@ impl Record for SomeRecord {
                 .map(SomeRecord::TXST),
             RecordType::GLOB => GLOB::read_rec(reader, rec)
                 .map(SomeRecord::GLOB),
+            RecordType::CLAS => CLAS::read_rec(reader, rec)
+                .map(SomeRecord::CLAS),
             t => Ok(SomeRecord::Other(t, rec)),
         }
     }

@@ -13,7 +13,7 @@ fn main() -> Result<()> {
         .unwrap();
 
     let f = File::open(file)?;
-    let entries = read_esp(f).map_err(|err| Error::new(ErrorKind::Other, err))?;
+    let entries = read_esp(f).map_err(|err| Error::new(ErrorKind::Other, format!("{}", err)))?;
     print_entries(0, entries);
     Ok(())
 }

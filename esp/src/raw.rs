@@ -1,11 +1,11 @@
 use std::mem::size_of;
-use std::io::{self, Read, Seek, SeekFrom, Result};
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::{fmt, str};
 
 use thiserror::Error;
 use bytemuck::{Pod, Zeroable};
 
-use crate::bin::ReadStructExt;
+use crate::bin::{ReadStructExt, Readable};
 
 
 #[derive(Debug, Clone, Copy)]
@@ -18,16 +18,16 @@ where R: Read + Seek {
         Self { reader }
     }
 
-    pub fn top_level_entries(&mut self) -> Result<Vec<Entry>> {
+    pub fn top_level_entries(&mut self) -> io::Result<Vec<Entry>> {
         let end = self.reader.stream_len()?;
         self.read_entries(0, end)
     }
 
-    pub fn entries(&mut self, group: &Group) -> Result<Vec<Entry>> {
+    pub fn entries(&mut self, group: &Group) -> io::Result<Vec<Entry>> {
         self.read_entries(group.position + TOTAL_GROUP_HEADER_SIZE as u64, group.data_size as u64)
     }
 
-    fn read_entries(&mut self, start: u64, size: u64) -> Result<Vec<Entry>> {
+    fn read_entries(&mut self, start: u64, size: u64) -> io::Result<Vec<Entry>> {
         let end = start + size;
         let mut current = self.reader.seek(SeekFrom::Start(start))?;
         let mut entries = Vec::new();
@@ -39,7 +39,7 @@ where R: Read + Seek {
         Ok(entries)
     }
 
-    fn read_entry(&mut self) -> Result<Entry> {
+    fn read_entry(&mut self) -> io::Result<Entry> {
         let l= self.reader.read_struct()?;
         if l == Label(*b"GRUP") {
             self.read_group()
@@ -50,7 +50,7 @@ where R: Read + Seek {
         }
     }
 
-    fn read_group(&mut self) -> Result<Group>
+    fn read_group(&mut self) -> io::Result<Group>
     where R: Read + Seek {
         let position = self.reader.stream_position()? - size_of::<Label>() as u64;
         let GroupHeader {
@@ -70,7 +70,7 @@ where R: Read + Seek {
         })
     }
 
-    fn read_record_after_label(&mut self, record_type: Label) -> Result<Record> {
+    fn read_record_after_label(&mut self, record_type: Label) -> io::Result<Record> {
         let position = self.reader.stream_position()? - size_of::<Label>() as u64;
         let RecordHeader {
             data_size,
@@ -95,7 +95,7 @@ where R: Read + Seek {
         })
     }
 
-    pub fn fields(&mut self, rec: &Record) -> Result<Vec<Field>> {
+    pub fn fields(&mut self, rec: &Record) -> io::Result<Vec<Field>> {
         let end = rec.position + TOTAL_RECORD_HEADER_SIZE as u64 + rec.data_size as u64;
         let mut current = self.reader.seek(SeekFrom::Start(rec.position + TOTAL_RECORD_HEADER_SIZE as u64))?;
         let mut fields = Vec::new();
@@ -107,7 +107,7 @@ where R: Read + Seek {
         Ok(fields)
     }
 
-    fn read_field(&mut self) -> Result<Field> {
+    fn read_field(&mut self) -> io::Result<Field> {
         let header0: FieldHeader = self.reader.read_struct()?;
         let mut field_type = header0.field_type;
         let mut data_size = header0.data_size as u32;
@@ -124,14 +124,15 @@ where R: Read + Seek {
         })
     }
 
-    pub fn content(&mut self, field: &Field) -> Result<Vec<u8>> {
+    pub fn content<T>(&mut self, field: &Field) -> Result<T, T::Error>
+    where T: Readable<Cursor<Vec<u8>>> {
         self.reader.seek(SeekFrom::Start(field.data_position))?;
-        let mut data = vec![0u8; field.data_size as usize];
-        self.reader.read_exact(&mut data)?;
-        Ok(data)
+        let mut bytes = vec![0u8; field.data_size as usize];
+        self.reader.read_exact(&mut bytes)?;
+        T::read_val(&mut Cursor::new(bytes))
     }
 
-    pub fn cast_content<P: Pod>(&mut self, field: &Field) -> Result<P> {
+    pub fn cast_content<P: Pod>(&mut self, field: &Field) -> io::Result<P> {
         if size_of::<P>() != field.data_size as usize {
             return Err(io::Error::new(io::ErrorKind::InvalidData, 
                 CastError::Size(size_of::<P>(), field.data_size as usize)))
@@ -139,19 +140,7 @@ where R: Read + Seek {
         self.reader.seek(SeekFrom::Start(field.data_position))?;
         self.reader.read_struct()
     }
-
-    pub fn cast_all_content<P: Pod>(&mut self, field: &Field) -> Result<Vec<P>> {
-        if field.data_size as usize % size_of::<P>() != 0 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, 
-                CastError::Size(size_of::<P>(), field.data_size as usize)))
-        }
-        self.reader.seek(SeekFrom::Start(field.data_position))?;
-        let mut vec = Vec::new();
-        for _ in 0 .. (field.data_size as usize / size_of::<P>()) {
-            vec.push(self.reader.read_struct()?);
-        }
-        Ok(vec)
-    }
+        
 }
 
 #[derive(Debug, Error)]
@@ -285,12 +274,12 @@ struct FieldHeader {
 #[cfg(test)]
 pub(crate) mod test {
     use std::fs::File;
-    use std::io::Result;
+    use std::io::io::Result;
 
     use super::*;
 
     #[test]
-    fn load_unoffical_patch() -> Result<()> {
+    fn load_unoffical_patch() -> io::Result<()> {
         let f = File::open("../test-data/unofficialSkyrimSEpatch.esp")?;
         let mut reader = EspReader::new(f);
 

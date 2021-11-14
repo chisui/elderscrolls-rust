@@ -1,12 +1,11 @@
-use std::io::Read;
-use std::io::Seek;
+use std::io::{Read, Seek};
 
-use bytemuck::Pod;
-use bytemuck::Zeroable;
+use bytemuck::{Pod, Zeroable};
 
 use crate::raw;
+use crate::typed::types::ZString;
 use crate::typed::types::{FormId, ObjectId};
-use crate::typed::record::{FieldError, Record, RecordError, RecordType, zstring_content};
+use crate::typed::record::{FieldError, Record, RecordError, RecordType};
 
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
@@ -50,20 +49,22 @@ impl TES4 {
                 Ok(None)
             },
             Some("CNAM") => {
-                tes4.author = Some(zstring_content(reader, &field)?);
+                let ZString(s) = reader.content(&field)?;
+                tes4.author = Some(s);
                 Ok(None)
             },
             Some("SNAM") => {
-                tes4.description = Some(zstring_content(reader, &field)?);
+                let ZString(s) = reader.content(&field)?;
+                tes4.description = Some(s);
                 Ok(None)
             },
             Some("MAST") => {
-                let s = zstring_content(reader, &field)?;
+                let ZString(s) = reader.content(&field)?;
                 Ok(Some(s))
             },
             Some("DATA") => {
                 if let Some(file) = &res.1 {
-                    let size = reader.cast_content(&field)?;
+                    let size = reader.content(&field)?;
                     tes4.masters.push(MasterFile {
                         file: file.to_owned(),
                         size,
@@ -74,7 +75,7 @@ impl TES4 {
                 }
             },
             Some("ONAM") => {
-                tes4.overridden_forms = reader.cast_all_content(&field)?;
+                tes4.overridden_forms = reader.content(&field)?;
                 Ok(None)
             },
             Some("INTV") => {

@@ -57,8 +57,8 @@ impl GLOB {
         
         match field.field_type.as_str() {
             Some("EDID") => {
-                let s = zstring_content(reader, &field)?;
-                tmp.id = Some(EditorID(s));
+                let data = reader.content(&field)?;
+                tmp.id = Some(data);
             },
             Some("FNAM") => {
                 let data: u8 = reader.cast_content(&field)?;

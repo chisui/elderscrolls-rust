@@ -1,9 +1,8 @@
-use std::io::Read;
-use std::io::Seek;
+use std::io::{Read, Seek};
 
 use crate::raw;
 
-use crate::typed::record::{FieldError, Record, RecordError, RecordType, zstring_content};
+use crate::typed::record::{FieldError, Record, RecordError, RecordType};
 use crate::typed::types::{EditorID, TypedValue};
 
 use super::record::unwarp_field;
@@ -23,8 +22,8 @@ impl GMST {
                 if key.is_some() {
                     Err(FieldError::Duplicate)
                 } else {
-                    let s = zstring_content(reader, &field)?;
-                    Ok((Some(EditorID(s)), value))
+                    let data = reader.content(&field)?;
+                    Ok((Some(data), value))
                 }
             },
             Some("DATA") => {
