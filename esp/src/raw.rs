@@ -234,7 +234,7 @@ const TOTAL_RECORD_HEADER_SIZE: usize
     = size_of::<Label>()
     + size_of::<RecordHeader>();
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Group {
     data_size: u32,
     position: u64,
