@@ -1,7 +1,9 @@
+use std::convert::TryFrom;
 use std::io::{Read, Seek};
 
 use num_enum::TryFromPrimitive;
 
+use crate::bin::{ReadStructExt, Readable};
 use crate::raw;
 
 use crate::typed::types::*;
@@ -16,6 +18,20 @@ pub struct GLOB {
     pub bounds: Option<ObjectBounds>,
     // pub script: Option<ScriptInfo>,
 }
+impl TryFrom<PartGLOB> for GLOB {
+    type Error = RecordError;
+    fn try_from(tmp: PartGLOB) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: unwarp_field(tmp.edid, b"EDID")?,
+            value: VarValue::new(
+                unwarp_field(tmp.fnam, b"FNAM")?,
+                unwarp_field(tmp.fltv, b"FLTV")?,
+            ),
+            bounds: tmp.obnd,
+            constant: false,
+        })
+    }
+}
 #[repr(u32)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum GLOBFlag {
@@ -23,10 +39,10 @@ pub enum GLOBFlag {
 }
 #[derive(Debug, Clone, Default)]
 struct PartGLOB {
-    id: Option<EditorID>,
-    var_type: Option<VarType>,
-    value: Option<f32>,
-    bounds: Option<ObjectBounds>,
+    edid: Option<EditorID>,
+    fnam: Option<VarType>,
+    fltv: Option<f32>,
+    obnd: Option<ObjectBounds>,
     // script: Option<ScriptInfo>,
 }
 #[repr(u8)]
@@ -35,6 +51,14 @@ enum VarType {
     Short = b's',
     Long  = b'l',
     Float = b'f',
+}
+impl<R: Read> Readable<R> for VarType {
+    type Error = FieldError;
+    fn read_val(reader: &mut R) -> Result<Self, Self::Error> {
+        let data: u8 = reader.read_struct()?;
+        let res = VarType::try_from_primitive(data)?;
+        Ok(res)
+    }
 }
 #[derive(Debug, Clone, PartialEq, PartialOrd,)]
 pub enum VarValue {
@@ -56,24 +80,11 @@ impl GLOB {
             tmp: &mut PartGLOB) -> Result<(), FieldError> {
         
         match field.field_type.as_str() {
-            Some("EDID") => {
-                let data = reader.content(&field)?;
-                tmp.id = Some(data);
-            },
-            Some("FNAM") => {
-                let data: u8 = reader.cast_content(&field)?;
-                let t = VarType::try_from_primitive(data)?;
-                tmp.var_type = Some(t);
-            },
-            Some("FLTV") => {
-                let data = reader.cast_content(&field)?;
-                tmp.value = Some(data);
-            },
-            Some("OBND") => {
-                // let data = reader.cast_content(&field)?;
-                // tmp.bounds = Some(data);
-            },
-            _ => return Err(FieldError::Unexpected)?,
+            Some("EDID") => tmp.edid = Some(reader.content(&field)?),
+            Some("FNAM") => tmp.fnam = Some(reader.content(&field)?),
+            Some("FLTV") => tmp.fltv = Some(reader.cast_content(&field)?),
+            Some("OBND") => tmp.obnd = Some(reader.content(&field)?),
+            _ => return Err(FieldError::Unexpected),
         }
         Ok(())
     }
@@ -87,18 +98,12 @@ impl Record for GLOB {
         let mut tmp = PartGLOB::default();
         
         for field in reader.fields(&rec)? {
-            GLOB::handle_field(reader, &field, &mut tmp)
+            Self::handle_field(reader, &field, &mut tmp)
                 .map_err(|err| RecordError::Field(field.field_type, err))?;
         }
 
-        Ok(Self {
-            id: unwarp_field(tmp.id, b"EDID")?,
-            value: VarValue::new(
-                unwarp_field(tmp.var_type, b"FNAM")?,
-                unwarp_field(tmp.value, b"FLTV")?,
-            ),
-            bounds: tmp.bounds,
-            constant: rec.flags & GLOBFlag::Const as u32 == GLOBFlag::Const as u32
-        })
+        let mut res = Self::try_from(tmp)?;
+        res.constant = rec.flags & GLOBFlag::Const as u32 == GLOBFlag::Const as u32;
+        Ok(res)
     }
 }
