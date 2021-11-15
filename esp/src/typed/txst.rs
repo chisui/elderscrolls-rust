@@ -31,35 +31,35 @@ impl TryFrom<PartTXST> for TXST {
     type Error = RecordError;
     fn try_from(value: PartTXST) -> Result<Self, Self::Error> {
         Ok(Self {
-            id: unwarp_field(value.id, b"EDID")?,
+            id: unwarp_field(value.edid, b"EDID")?,
             obnd: unwarp_field(value.obnd, b"OBND")?,
-            color: unwarp_field(value.color, b"TX00")?,
-            normal: value.normal,
-            mask: value.mask,
-            tone_or_glow: value.tone_or_glow,
-            detail: value.detail,
-            env: value.env,
-            multilayer: value.multilayer,
-            specular: value.specular,
-            decal: value.decal,
-            flags: unwarp_field(value.flags, b"DNAM")?,
+            color: unwarp_field(value.tx00, b"TX00")?,
+            normal: value.tx01,
+            mask: value.tx02,
+            tone_or_glow: value.tx03,
+            detail: value.tx04,
+            env: value.tx05,
+            multilayer: value.tx06,
+            specular: value.tx07,
+            decal: value.dodt.map(DecalData::from),
+            flags: unwarp_field(value.dnam, b"DNAM")?,
         })
     }
 }
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct PartTXST {
-    pub id: Option<EditorID>,
-    pub obnd: Option<[u8; 12]>,
-    pub color: Option<Path>,
-    pub normal: Option<Path>,
-    pub mask: Option<Path>,
-    pub tone_or_glow: Option<Path>,
-    pub detail: Option<Path>,
-    pub env: Option<Path>,
-    pub multilayer: Option<Path>,
-    pub specular: Option<Path>,
-    pub decal: Option<DecalData>,
-    pub flags: Option<BitFlags<TXSTFlags>>,
+struct PartTXST {
+    edid: Option<EditorID>,
+    obnd: Option<[u8; 12]>,
+    tx00: Option<Path>,
+    tx01: Option<Path>,
+    tx02: Option<Path>,
+    tx03: Option<Path>,
+    tx04: Option<Path>,
+    tx05: Option<Path>,
+    tx06: Option<Path>,
+    tx07: Option<Path>,
+    dodt: Option<RawDecalData>,
+    dnam: Option<BitFlags<TXSTFlags>>,
 }
 #[bitflags]
 #[repr(u16)]
@@ -125,54 +125,18 @@ impl TXST {
             tmp: &mut PartTXST) -> Result<(), FieldError> {
         
         match field.field_type.as_str() {
-            Some("EDID") => {
-                let data = reader.content(&field)?;
-                tmp.id = Some(data);
-            },
-            Some("OBND") => {
-                let obnd = reader.cast_content(&field)?;
-                tmp.obnd = Some(obnd);
-            },
-            Some("TX00") => {
-                let data = reader.content(&field)?;
-                tmp.color = Some(data);
-            },
-            Some("TX01") => {
-                let data = reader.content(&field)?;
-                tmp.normal = Some(data);
-            },
-            Some("TX02") => {
-                let data = reader.content(&field)?;
-                tmp.mask = Some(data);
-            },
-            Some("TX03") => {
-                let data = reader.content(&field)?;
-                tmp.tone_or_glow = Some(data);
-            },
-            Some("TX04") => {
-                let data = reader.content(&field)?;
-                tmp.detail = Some(data);
-            },
-            Some("TX05") => {
-                let data = reader.content(&field)?;
-                tmp.env = Some(data);
-            },
-            Some("TX06") => {
-                let data = reader.content(&field)?;
-                tmp.multilayer = Some(data);
-            },
-            Some("TX07") => {
-                let data = reader.content(&field)?;
-                tmp.specular = Some(data);
-            },
-            Some("DODT") => {
-                let raw_decl: RawDecalData = reader.cast_content(&field)?;
-                tmp.decal = Some(raw_decl.into());
-            },
-            Some("DNAM") => {
-                let flags: u16 = reader.cast_content(&field)?;
-                tmp.flags = Some(BitFlags::from_bits_truncate(flags));
-            },
+            Some("EDID") => tmp.edid = Some(reader.content(&field)?),
+            Some("OBND") => tmp.obnd = Some(reader.cast_content(&field)?),
+            Some("TX00") => tmp.tx00 = Some(reader.content(&field)?),
+            Some("TX01") => tmp.tx01 = Some(reader.content(&field)?),
+            Some("TX02") => tmp.tx02 = Some(reader.content(&field)?),
+            Some("TX03") => tmp.tx03 = Some(reader.content(&field)?),
+            Some("TX04") => tmp.tx04 = Some(reader.content(&field)?),
+            Some("TX05") => tmp.tx05 = Some(reader.content(&field)?),
+            Some("TX06") => tmp.tx06 = Some(reader.content(&field)?),
+            Some("TX07") => tmp.tx07 = Some(reader.content(&field)?),
+            Some("DODT") => tmp.dodt = Some(reader.cast_content(&field)?),
+            Some("DNAM") => tmp.dnam = Some(reader.content(&field)?),
             _ => return Err(FieldError::Unexpected),
         }
         Ok(())
@@ -187,7 +151,7 @@ impl Record for TXST {
         let mut tmp = PartTXST::default();
         
         for field in reader.fields(&rec)? {
-            TXST::handle_field(reader, &field, &mut tmp)
+            Self::handle_field(reader, &field, &mut tmp)
                 .map_err(|err| RecordError::Field(field.field_type, err))?;
         }
 
