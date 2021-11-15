@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::io::{Read, Seek};
 
 use bytemuck::{Pod, Zeroable};
@@ -24,12 +25,33 @@ pub struct CLAS {
     pub stamina_weight: u8,
     pub flags: u8,
 }
+impl TryFrom<PartCLAS> for CLAS {
+    type Error = RecordError;
+    fn try_from(tmp: PartCLAS) -> Result<Self, Self::Error> {
+        let data = unwarp_field(tmp.data, b"DATA")?;
+        Ok(Self {
+            id: unwarp_field(tmp.edid, b"EDID")?,
+            name: unwarp_field(tmp.full, b"FULL")?.to_string(),
+            description: unwarp_field(tmp.desc, b"DESC")?.to_string(),
+            menu_image: tmp.icon,
+            skill_training: data.skill_training,
+            skill_training_level: data.skill_training_level,
+            skill_weights: data.skill_weights,
+            bleedout_default: data.bleedout_default,
+            voice_points: data.voice_points,
+            health_weight: data.health_weight,
+            magicka_weight: data.magicka_weight,
+            stamina_weight: data.stamina_weight,
+            flags: data.flags,
+        })
+    }
+}
 #[derive(Debug, Clone, Default)]
 struct PartCLAS {
-    id: Option<EditorID>,
-    name: Option<String>,
-    description: Option<String>,
-    menu_image: Option<Path>,
+    edid: Option<EditorID>,
+    full: Option<ZString>,
+    desc: Option<ZString>,
+    icon: Option<Path>,
     data: Option<CLASData>,
 }
 #[repr(C)]
@@ -73,26 +95,11 @@ impl CLAS {
             tmp: &mut PartCLAS) -> Result<(), FieldError> {
         
         match field.field_type.as_str() {
-            Some("EDID") => {
-                let data = reader.content(&field)?;
-                tmp.id = Some(data);
-            },
-            Some("FULL") => {
-                let ZString(data) = reader.content(&field)?;
-                tmp.name = Some(data);
-            },
-            Some("DESC") => {
-                let ZString(data) = reader.content(&field)?;
-                tmp.description = Some(data);
-            },
-            Some("ICON") => {
-                let data = reader.content(&field)?;
-                tmp.menu_image = Some(data);
-            },
-            Some("DATA") => {
-                let data = reader.cast_content(&field)?;
-                tmp.data = Some(data);
-            },
+            Some("EDID") => tmp.edid = Some(reader.content(&field)?),
+            Some("FULL") => tmp.full = Some(reader.content(&field)?),
+            Some("DESC") => tmp.desc = Some(reader.content(&field)?),
+            Some("ICON") => tmp.icon = Some(reader.content(&field)?),
+            Some("DATA") => tmp.data = Some(reader.cast_content(&field)?),
             _ => return Err(FieldError::Unexpected)?,
         }
         Ok(())
@@ -107,25 +114,10 @@ impl Record for CLAS {
         let mut tmp = PartCLAS::default();
         
         for field in reader.fields(&rec)? {
-            CLAS::handle_field(reader, &field, &mut tmp)
+            Self::handle_field(reader, &field, &mut tmp)
                 .map_err(|err| RecordError::Field(field.field_type, err))?;
         }
 
-        let data = unwarp_field(tmp.data, b"DATA")?;
-        Ok(Self {
-            id: unwarp_field(tmp.id, b"EDID")?,
-            name: unwarp_field(tmp.name, b"FULL")?,
-            description: unwarp_field(tmp.description, b"DESC")?,
-            menu_image: tmp.menu_image,
-            skill_training: data.skill_training,
-            skill_training_level: data.skill_training_level,
-            skill_weights: data.skill_weights,
-            bleedout_default: data.bleedout_default,
-            voice_points: data.voice_points,
-            health_weight: data.health_weight,
-            magicka_weight: data.magicka_weight,
-            stamina_weight: data.stamina_weight,
-            flags: data.flags,
-        })
+        Self::try_from(tmp)
     }
 }
