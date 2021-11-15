@@ -24,7 +24,7 @@ fn print_entries(indent: usize, entries: Vec<Entry>) {
                 match rec {
                     SomeRecord::Other(t, _) => println!("{}{}", "  ".repeat(indent), t),
                     _ => println!("{}{:?}", "  ".repeat(indent), rec),
-                }            
+                }
             },
             Entry::Group(grp) => {
                 println!("{}{}", "  ".repeat(indent), grp.info);

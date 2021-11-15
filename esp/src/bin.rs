@@ -1,6 +1,8 @@
 use std::io::{self, BufRead, Read};
 
 use bytemuck::Pod;
+use enumflags2::{BitFlag, BitFlags};
+use enumflags2::_internal::RawBitFlags;
 
 
 pub trait ReadStructExt<S>
@@ -54,5 +56,17 @@ where T: Readable<R>, R: BufRead {
             values.push(val);
         }
         Ok(values)
+    }
+}
+impl<F, R> Readable<R> for BitFlags<F>
+where
+    F: BitFlag,
+    <F as RawBitFlags>::Numeric: Readable<R>,
+{
+    type Error = <<F as RawBitFlags>::Numeric as Readable<R>>::Error;
+
+    fn read_val(reader: &mut R) -> Result<Self, Self::Error> {
+        let raw = <F as RawBitFlags>::Numeric::read_val(reader)?;
+        Ok(BitFlags::from_bits_truncate(raw))
     }
 }

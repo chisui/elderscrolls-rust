@@ -7,21 +7,23 @@ mod error;
 mod types;
 mod group;
 mod record;
-mod tes4;
 mod clas;
-mod gmst;
+mod fact;
 mod glob;
-mod txst;
+mod gmst;
 mod kywd;
+mod tes4;
+mod txst;
 use crate::typed::error::*;
 use crate::typed::group::*;
 use crate::typed::record::Record;
-use crate::typed::tes4::TES4;
 use crate::typed::clas::CLAS;
-use crate::typed::gmst::GMST;
+use crate::typed::fact::FACT;
 use crate::typed::glob::GLOB;
-use crate::typed::txst::TXST;
+use crate::typed::gmst::GMST;
 use crate::typed::kywd::KYWD;
+use crate::typed::tes4::TES4;
+use crate::typed::txst::TXST;
 
 use self::record::{RecordError, RecordType};
 
@@ -80,41 +82,45 @@ impl Group {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SomeRecord {
-    TES4(TES4),
+    CLAS(CLAS),
+    FACT(FACT),
+    GLOB(GLOB),
     GMST(GMST),
     KYWD(KYWD),
+    TES4(TES4),
     TXST(TXST),
-    GLOB(GLOB),
-    CLAS(CLAS),
     Other(RecordType, raw::Record),
 }
 impl Record for SomeRecord {
     fn record_type(&self) -> RecordType {
         match self {
-            SomeRecord::TES4(_) => RecordType::TES4,
-            SomeRecord::GMST(_) => RecordType::GMST,
-            SomeRecord::KYWD(_) => RecordType::KYWD,
-            SomeRecord::TXST(_) => RecordType::TXST,
-            SomeRecord::GLOB(_) => RecordType::GLOB,
-            SomeRecord::CLAS(_) => RecordType::CLAS,
+            Self::CLAS(_) => RecordType::CLAS,
+            Self::FACT(_) => RecordType::FACT,
+            Self::GLOB(_) => RecordType::GLOB,
+            Self::GMST(_) => RecordType::GMST,
+            Self::KYWD(_) => RecordType::KYWD,
+            Self::TES4(_) => RecordType::TES4,
+            Self::TXST(_) => RecordType::TXST,
             SomeRecord::Other(t, _) => *t,
         }
     }
 
     fn read_rec<R: Read + Seek>(reader: &mut raw::EspReader<R>, rec: raw::Record) -> Result<Self, RecordError> {
         match RecordType::try_from(rec.record_type)? {
-            RecordType::TES4 => TES4::read_rec(reader, rec)
-                .map(SomeRecord::TES4),
-            RecordType::GMST => GMST::read_rec(reader, rec)
-                .map(SomeRecord::GMST),
-            RecordType::KYWD => KYWD::read_rec(reader, rec)
-                .map(SomeRecord::KYWD),
-            RecordType::TXST => TXST::read_rec(reader, rec)
-                .map(SomeRecord::TXST),
-            RecordType::GLOB => GLOB::read_rec(reader, rec)
-                .map(SomeRecord::GLOB),
             RecordType::CLAS => CLAS::read_rec(reader, rec)
-                .map(SomeRecord::CLAS),
+                .map(Self::CLAS),
+            RecordType::FACT => FACT::read_rec(reader, rec)
+                .map(Self::FACT),
+            RecordType::GLOB => GLOB::read_rec(reader, rec)
+                .map(Self::GLOB),
+            RecordType::GMST => GMST::read_rec(reader, rec)
+                .map(Self::GMST),
+            RecordType::KYWD => KYWD::read_rec(reader, rec)
+                .map(Self::KYWD),
+            RecordType::TES4 => TES4::read_rec(reader, rec)
+                .map(Self::TES4),
+            RecordType::TXST => TXST::read_rec(reader, rec)
+                .map(Self::TXST),
             t => Ok(SomeRecord::Other(t, rec)),
         }
     }

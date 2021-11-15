@@ -175,6 +175,21 @@ pub enum StringError {
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ZString(pub String);
+impl ToString for ZString {
+    fn to_string(&self) -> String {
+        self.0.to_owned()
+    }
+}
+impl From<ZString> for String {
+    fn from(val: ZString) -> Self {
+        val.0
+    }
+}
+impl From<&ZString> for String {
+    fn from(val: &ZString) -> Self {
+        val.0.to_owned()
+    }
+}
 impl<R: Read> Readable<R> for ZString {
     type Error = StringError;
     fn read_val(reader: &mut R) -> Result<Self, StringError> {
