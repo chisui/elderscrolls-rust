@@ -110,10 +110,10 @@ impl Record for TES4 {
         let mut tmp = PartTES4::default();
 
         for field in reader.fields(&rec)? {
-            TES4::handle_field(reader, &field, &mut tmp)
+            Self::handle_field(reader, &field, &mut tmp)
                 .map_err(|err| RecordError::Field(field.field_type, err))?;
         }
 
-        TES4::try_from(tmp)
+        Self::try_from(tmp)
     }
 }

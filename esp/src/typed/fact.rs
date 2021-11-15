@@ -240,10 +240,10 @@ impl Record for FACT {
         let mut tmp = PartFACT::default();
         
         for field in reader.fields(&rec)? {
-            FACT::handle_field(reader, &field, &mut tmp)
+            Self::handle_field(reader, &field, &mut tmp)
                 .map_err(|err| RecordError::Field(field.field_type, err))?;
         }
 
-        FACT::try_from(tmp)
+        Self::try_from(tmp)
     }
 }
